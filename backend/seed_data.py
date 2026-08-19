@@ -124,19 +124,17 @@ for p in pieces_data:
     if dxf_path.exists():
         # Análisis DXF
         length_cut_mm, area_mm2 = analyze_dxf(str(dxf_path))
-        # Guardar DXF con nombre por pieza
-        import shutil
-        dest_dxf = DXF_DIR / f"piece_{obj.id}.dxf"
-        shutil.copy(dxf_path, dest_dxf)
-        obj.dxf_path = str(dest_dxf)
+        obj.dxf_data = dxf_path.read_bytes()
+        obj.dxf_filename = p["dxf_file"]
         obj.length_cut_mm = length_cut_mm
         obj.area_mm2 = area_mm2
 
-        # Preview PNG
+        # Preview PNG (se genera en un archivo temporal y se guarda como bytes)
         try:
-            preview_path = DXF_DIR / f"piece_{obj.id}_preview.png"
-            generate_dxf_preview(str(dest_dxf), str(preview_path))
-            obj.preview_path = str(preview_path)
+            preview_tmp = DXF_DIR / f"_tmp_piece_{obj.id}_preview.png"
+            generate_dxf_preview(str(dxf_path), str(preview_tmp))
+            obj.preview_data = preview_tmp.read_bytes()
+            preview_tmp.unlink(missing_ok=True)
             print(f"  Preview generada: {obj.name}")
         except Exception as e:
             print(f"  Preview fallida para {obj.name}: {e}")

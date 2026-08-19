@@ -204,13 +204,12 @@ def _fmt_date(dt) -> str:
     return dt.strftime("%d/%m/%Y")
 
 
-def _load_thumbnail(preview_path: str, size_mm: float) -> Image | None:
-    """Carga una imagen preview y la convierte a RGB para ReportLab."""
+def _load_thumbnail(preview_data: bytes | None, size_mm: float) -> Image | None:
+    """Carga una imagen preview (bytes) y la convierte a RGB para ReportLab."""
+    if not preview_data:
+        return None
     try:
-        path = Path(preview_path)
-        if not path.exists():
-            return None
-        img = PILImage.open(path)
+        img = PILImage.open(io.BytesIO(preview_data))
         # Convertir RGBA → RGB con fondo blanco
         if img.mode in ("RGBA", "LA", "P"):
             background = PILImage.new("RGB", img.size, (255, 255, 255))
@@ -268,20 +267,19 @@ def generate_quotation_pdf(
 
     # Logo: imagen si existe, sino caja oscura con texto
     logo_col_w = USABLE_W * 0.38
-    logo_path = company.logo_path if company else None
-    logo_file = Path(logo_path) if logo_path else None
+    logo_data = company.logo_data if company else None
 
-    if logo_file and logo_file.exists():
+    if logo_data:
         # Calcular dimensiones manteniendo aspecto, max ancho = logo_col_w, max alto = 18mm
         try:
-            pil_img = PILImage.open(logo_file)
+            pil_img = PILImage.open(io.BytesIO(logo_data))
             img_w, img_h = pil_img.size
             max_w = logo_col_w - 8  # padding
             max_h = 18 * mm
             ratio = min(max_w / img_w, max_h / img_h)
             draw_w = img_w * ratio
             draw_h = img_h * ratio
-            logo_flowable = Image(str(logo_file), width=draw_w, height=draw_h)
+            logo_flowable = Image(io.BytesIO(logo_data), width=draw_w, height=draw_h)
         except Exception:
             logo_flowable = Paragraph(company_name, S["logo_name"])
 
@@ -461,8 +459,8 @@ def generate_quotation_pdf(
         thickness = f"{material.thickness_mm:.1f}" if material else "—"
 
         thumb = None
-        if piece and piece.preview_path:
-            thumb = _load_thumbnail(piece.preview_path, PREVIEW_SIZE)
+        if piece and piece.preview_data:
+            thumb = _load_thumbnail(piece.preview_data, PREVIEW_SIZE)
         if thumb is None:
             thumb = Paragraph("", S["table_cell_center"])
 

@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -27,10 +30,16 @@ def calculate(
     piece = db.query(Piece).filter(Piece.id == payload.piece_id, Piece.active.is_(True)).first()
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
-    if not piece.dxf_path:
+    if not piece.dxf_data:
         raise HTTPException(status_code=400, detail="La pieza no tiene DXF cargado.")
 
-    piece_w, piece_h = get_bounding_box(piece.dxf_path)
+    with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as tmp:
+        tmp.write(piece.dxf_data)
+        tmp_path = tmp.name
+    try:
+        piece_w, piece_h = get_bounding_box(tmp_path)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
     if piece_w == 0 or piece_h == 0:
         raise HTTPException(status_code=400, detail="No se pudo calcular el bounding box del DXF.")
 
