@@ -29,6 +29,18 @@ def list_clients(db: Session = Depends(get_db)):
     return db.query(Client).filter(Client.active.is_(True)).all()
 
 
+@router.get("/{client_id}", response_model=ClientRead)
+def get_client(client_id: int, db: Session = Depends(get_db)):
+    client = (
+        db.query(Client)
+        .filter(Client.id == client_id, Client.active.is_(True))
+        .first()
+    )
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client
+
+
 @router.put("/{client_id}", response_model=ClientRead)
 def update_client(
     client_id: int,

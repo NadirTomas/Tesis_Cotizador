@@ -119,6 +119,24 @@ def get_quotation(quotation_id: int, db: Session = Depends(get_db)):
     return quotation
 
 
+@router.delete("/{quotation_id}", status_code=204)
+def delete_quotation(
+    quotation_id: int,
+    db: Session = Depends(get_db),
+    current_user: int = Depends(get_current_user),
+):
+    quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+    if quotation.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden eliminar cotizaciones en estado 'draft'",
+        )
+    db.delete(quotation)
+    db.commit()
+
+
 @router.patch("/{quotation_id}/status", response_model=QuotationRead)
 def update_status(
     quotation_id: int,

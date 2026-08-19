@@ -29,6 +29,18 @@ def list_materials(db: Session = Depends(get_db)):
     return db.query(Material).filter(Material.active.is_(True)).all()
 
 
+@router.get("/{material_id}", response_model=MaterialRead)
+def get_material(material_id: int, db: Session = Depends(get_db)):
+    material = (
+        db.query(Material)
+        .filter(Material.id == material_id, Material.active.is_(True))
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+    return material
+
+
 @router.put("/{material_id}", response_model=MaterialRead)
 def update_material(
     material_id: int,

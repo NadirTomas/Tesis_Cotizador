@@ -45,6 +45,18 @@ def list_machine_configs(db: Session = Depends(get_db)):
     return db.query(MachineConfig).filter(MachineConfig.active.is_(True)).all()
 
 
+@router.get("/{config_id}", response_model=MachineConfigRead)
+def get_machine_config(config_id: int, db: Session = Depends(get_db)):
+    config = (
+        db.query(MachineConfig)
+        .filter(MachineConfig.id == config_id, MachineConfig.active.is_(True))
+        .first()
+    )
+    if not config:
+        raise HTTPException(status_code=404, detail="Machine config not found")
+    return config
+
+
 @router.put("/{config_id}", response_model=MachineConfigRead)
 def update_machine_config(
     config_id: int,
