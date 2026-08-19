@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface Quotation {
   id: number;
@@ -53,30 +54,22 @@ export interface QuotationItemCreate {
 const BASE = `${API_BASE_URL}/quotations`;
 const ITEMS_BASE = `${API_BASE_URL}/quotation-items`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
 export async function getQuotations(): Promise<Quotation[]> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener cotizaciones");
   return res.json();
 }
 
 export async function getQuotation(id: number): Promise<Quotation> {
-  const res = await fetch(`${BASE}/${id}`);
+  const res = await apiFetch(`${BASE}/${id}`);
   if (!res.ok) throw new Error("Error al obtener cotización");
   return res.json();
 }
 
 export async function createQuotation(data: QuotationCreate): Promise<Quotation> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear cotización");
@@ -84,15 +77,15 @@ export async function createQuotation(data: QuotationCreate): Promise<Quotation>
 }
 
 export async function getQuotationItems(quotationId: number): Promise<QuotationItem[]> {
-  const res = await fetch(`${ITEMS_BASE}/quotation/${quotationId}`);
+  const res = await apiFetch(`${ITEMS_BASE}/quotation/${quotationId}`);
   if (!res.ok) throw new Error("Error al obtener ítems de cotización");
   return res.json();
 }
 
 export async function createQuotationItem(data: QuotationItemCreate): Promise<QuotationItem> {
-  const res = await fetch(ITEMS_BASE, {
+  const res = await apiFetch(ITEMS_BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear ítem de cotización");
@@ -104,9 +97,9 @@ export function getQuotationPdfUrl(id: number): string {
 }
 
 export async function updateQuotationStatus(id: number, status: string): Promise<Quotation> {
-  const res = await fetch(`${BASE}/${id}/status`, {
+  const res = await apiFetch(`${BASE}/${id}/status`, {
     method: "PATCH",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error("Error al actualizar estado");
@@ -114,7 +107,7 @@ export async function updateQuotationStatus(id: number, status: string): Promise
 }
 
 export async function deleteQuotationItem(itemId: number): Promise<void> {
-  const res = await fetch(`${ITEMS_BASE}/${itemId}`, {
+  const res = await apiFetch(`${ITEMS_BASE}/${itemId}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });

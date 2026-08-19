@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface Client {
   id: number;
@@ -32,24 +33,16 @@ export interface ClientUpdate {
 
 const BASE = `${API_BASE_URL}/clients`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
 export async function getClients(): Promise<Client[]> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener clientes");
   return res.json();
 }
 
 export async function createClient(data: ClientCreate): Promise<Client> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear cliente");
@@ -57,9 +50,9 @@ export async function createClient(data: ClientCreate): Promise<Client> {
 }
 
 export async function updateClient(id: number, data: ClientUpdate): Promise<Client> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al actualizar cliente");
@@ -67,7 +60,7 @@ export async function updateClient(id: number, data: ClientUpdate): Promise<Clie
 }
 
 export async function deleteClient(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });

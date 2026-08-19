@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface CompanyConfig {
   id: number;
@@ -22,31 +23,16 @@ export interface CompanyConfigUpdate {
 
 const BASE = `${API_BASE_URL}/company`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
-function getAuthHeadersMultipart(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
-
 export async function getCompany(): Promise<CompanyConfig> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener configuración de empresa");
   return res.json();
 }
 
 export async function updateCompany(data: CompanyConfigUpdate): Promise<CompanyConfig> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al guardar configuración de empresa");
@@ -56,9 +42,9 @@ export async function updateCompany(data: CompanyConfigUpdate): Promise<CompanyC
 export async function uploadLogo(file: File): Promise<CompanyConfig> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${BASE}/logo`, {
+  const res = await apiFetch(`${BASE}/logo`, {
     method: "POST",
-    headers: getAuthHeadersMultipart(),
+    headers: getAuthHeaders(),
     body: formData,
   });
   if (!res.ok) throw new Error("Error al subir el logo");

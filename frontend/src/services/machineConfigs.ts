@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface MachineConfig {
   id: number;
@@ -28,24 +29,16 @@ export interface MachineConfigUpdate {
 
 const BASE = `${API_BASE_URL}/machine-configs`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
 export async function getMachineConfigs(): Promise<MachineConfig[]> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener configuraciones de máquina");
   return res.json();
 }
 
 export async function createMachineConfig(data: MachineConfigCreate): Promise<MachineConfig> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear configuración de máquina");
@@ -53,9 +46,9 @@ export async function createMachineConfig(data: MachineConfigCreate): Promise<Ma
 }
 
 export async function updateMachineConfig(id: number, data: MachineConfigUpdate): Promise<MachineConfig> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al actualizar configuración de máquina");
@@ -63,7 +56,7 @@ export async function updateMachineConfig(id: number, data: MachineConfigUpdate)
 }
 
 export async function deleteMachineConfig(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });

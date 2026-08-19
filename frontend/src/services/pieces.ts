@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface Piece {
   id: number;
@@ -38,37 +39,22 @@ export interface DxfAnalysisResult {
 
 const BASE = `${API_BASE_URL}/pieces`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
-function getAuthHeadersMultipart(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
-
 export async function getPieces(): Promise<Piece[]> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener piezas");
   return res.json();
 }
 
 export async function getPiece(id: number): Promise<Piece> {
-  const res = await fetch(`${BASE}/${id}`);
+  const res = await apiFetch(`${BASE}/${id}`);
   if (!res.ok) throw new Error("Error al obtener pieza");
   return res.json();
 }
 
 export async function createPiece(data: PieceCreate): Promise<Piece> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear pieza");
@@ -76,9 +62,9 @@ export async function createPiece(data: PieceCreate): Promise<Piece> {
 }
 
 export async function updatePiece(id: number, data: PieceUpdate): Promise<Piece> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al actualizar pieza");
@@ -86,7 +72,7 @@ export async function updatePiece(id: number, data: PieceUpdate): Promise<Piece>
 }
 
 export async function deletePiece(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
@@ -96,9 +82,9 @@ export async function deletePiece(id: number): Promise<void> {
 export async function uploadDxf(id: number, file: File): Promise<Piece> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${BASE}/${id}/upload-dxf`, {
+  const res = await apiFetch(`${BASE}/${id}/upload-dxf`, {
     method: "POST",
-    headers: getAuthHeadersMultipart(),
+    headers: getAuthHeaders(),
     body: formData,
   });
   if (!res.ok) throw new Error("Error al subir DXF");

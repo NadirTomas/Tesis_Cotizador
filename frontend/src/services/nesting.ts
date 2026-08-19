@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface NestingPosition {
   x: number;
@@ -28,9 +29,9 @@ export interface NestingRequest {
 const BASE = `${API_BASE_URL}/nesting`;
 
 export async function calculateNesting(data: NestingRequest): Promise<NestingResult> {
-  const res = await fetch(`${BASE}/calculate`, {
+  const res = await apiFetch(`${BASE}/calculate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -57,7 +58,7 @@ export interface DashboardStats {
 }
 
 export async function getStats(): Promise<DashboardStats> {
-  const res = await fetch(`${API_BASE_URL}/quotations/stats`);
+  const res = await apiFetch(`${API_BASE_URL}/quotations/stats`);
   if (!res.ok) throw new Error("Error al cargar estadísticas");
   return res.json();
 }

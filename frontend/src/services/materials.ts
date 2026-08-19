@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "../config/api";
+import { apiFetch, getAuthHeaders } from "./apiClient";
 
 export interface Material {
   id: number;
@@ -29,24 +30,16 @@ export interface MaterialUpdate {
 
 const BASE = `${API_BASE_URL}/materials`;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem("auth_token");
-  return {
-    "Content-Type": "application/json",
-    ...(token && { "Authorization": `Bearer ${token}` }),
-  };
-}
-
 export async function getMaterials(): Promise<Material[]> {
-  const res = await fetch(BASE);
+  const res = await apiFetch(BASE);
   if (!res.ok) throw new Error("Error al obtener materiales");
   return res.json();
 }
 
 export async function createMaterial(data: MaterialCreate): Promise<Material> {
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear material");
@@ -54,9 +47,9 @@ export async function createMaterial(data: MaterialCreate): Promise<Material> {
 }
 
 export async function updateMaterial(id: number, data: MaterialUpdate): Promise<Material> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "PUT",
-    headers: getAuthHeaders(),
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al actualizar material");
@@ -64,7 +57,7 @@ export async function updateMaterial(id: number, data: MaterialUpdate): Promise<
 }
 
 export async function deleteMaterial(id: number): Promise<void> {
-  const res = await fetch(`${BASE}/${id}`, {
+  const res = await apiFetch(`${BASE}/${id}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
