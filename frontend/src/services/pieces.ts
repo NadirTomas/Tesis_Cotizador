@@ -5,8 +5,9 @@ export interface Piece {
   name: string;
   description: string | null;
   material_id: number | null;
-  dxf_path: string | null;
-  preview_path: string | null;
+  dxf_filename: string | null;
+  has_dxf: boolean;
+  has_preview: boolean;
   length_cut_mm: number | null;
   area_mm2: number | null;
   active: boolean;

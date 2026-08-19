@@ -255,7 +255,7 @@ const PiecesPage = () => {
               {paginatedItems.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell sx={{ py: 0.5 }}>
-                    {p.preview_path ? (
+                    {p.has_preview ? (
                       <Box
                         component="img"
                         src={getPiecePreviewUrl(p.id)}
@@ -290,7 +290,7 @@ const PiecesPage = () => {
                     </span>
                   </TableCell>
                   <TableCell align="center">
-                    {p.dxf_path ? (
+                    {p.has_dxf ? (
                       <Chip label="Cargado" size="small" color="success" variant="outlined" />
                     ) : (
                       <Chip label="Sin DXF" size="small" variant="outlined" />

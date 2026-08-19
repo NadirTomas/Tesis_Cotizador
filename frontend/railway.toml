@@ -6,4 +6,4 @@ buildCommand = "npm install && npm run build"
 NODE_VERSION = "20"
 
 [deploy]
-startCommand = "npx serve dist --listen $PORT"
+startCommand = "npx serve dist -s --listen $PORT"

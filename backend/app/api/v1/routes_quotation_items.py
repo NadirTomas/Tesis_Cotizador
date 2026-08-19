@@ -33,11 +33,11 @@ def create_quotation_item(
     item = QuotationItem(**payload.dict())
     item.created_by_id = current_user
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    db.flush()
     try:
         calculate_quotation_item(db, item)
     except ValueError as exc:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return item
 

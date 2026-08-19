@@ -170,9 +170,8 @@ def upload_dxf(
 
     db.commit()
     db.refresh(piece)
-    result = PieceRead.from_orm(piece)
     logger.info("DXF uploaded successfully", extra={"piece_id": piece_id, "dxf_filename": file.filename, "file_size_kb": len(dxf_content) / 1024, "length_cut_mm": length_cut_mm, "area_mm2": area_mm2, "user": current_user})
-    return result
+    return piece
 
 
 @router.get("/{piece_id}/preview")

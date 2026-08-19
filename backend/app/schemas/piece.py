@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class PieceBase(BaseModel):
@@ -35,9 +35,12 @@ class PieceRead(PieceBase):
 
     model_config = {"from_attributes": True}
 
+    @model_validator(mode="before")
     @classmethod
-    def from_orm(cls, obj):
-        data = obj.__dict__.copy()
-        data["has_dxf"] = bool(obj.dxf_data)
-        data["has_preview"] = bool(obj.preview_data)
-        return cls(**data)
+    def _compute_dxf_flags(cls, obj):
+        if isinstance(obj, dict):
+            return obj
+        data = {k: v for k, v in vars(obj).items() if not k.startswith("_")}
+        data["has_dxf"] = bool(getattr(obj, "dxf_data", None))
+        data["has_preview"] = bool(getattr(obj, "preview_data", None))
+        return data

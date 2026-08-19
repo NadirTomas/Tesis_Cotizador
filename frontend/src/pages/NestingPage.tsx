@@ -126,7 +126,7 @@ const NestingPage = () => {
 
   useEffect(() => {
     Promise.all([getPieces(), getMaterials()])
-      .then(([p, m]) => { setPieces(p.filter((x) => x.dxf_path)); setMaterials(m); })
+      .then(([p, m]) => { setPieces(p.filter((x) => x.has_dxf)); setMaterials(m); })
       .catch(() => setError("No se pudieron cargar los datos."))
       .finally(() => setLoading(false));
   }, []);
