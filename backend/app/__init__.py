@@ -1,0 +1,1 @@
+"""CotizaLaser backend application package."""

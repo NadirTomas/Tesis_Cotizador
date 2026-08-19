@@ -1,0 +1,9 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
+
+[build.env]
+NODE_VERSION = "20"
+
+[deploy]
+startCommand = "npx serve dist --listen $PORT"

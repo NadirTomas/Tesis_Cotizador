@@ -1,0 +1,55 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  font-family: "DM Sans", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #e8e9eb;
+  background-color: #0a0b0e;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #0a0b0e;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Mono para valores numéricos en tablas */
+.mono {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85em;
+}
+
+/* Scrollbar global */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2c36 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #2a2c36;
+  border-radius: 3px;
+}

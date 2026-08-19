@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Entornos virtuales
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+
+# Base de datos local
+backend/*.db
+backend/*.sqlite
+
+# Archivos de datos locales (DXF, PDFs, previews)
+backend/data/dxf/
+backend/data/pdfs/
+backend/data/assets/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Node
+frontend/node_modules/
+frontend/dist/
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
