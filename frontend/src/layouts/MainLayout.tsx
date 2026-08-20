@@ -1,6 +1,7 @@
 import {
   Box,
   Drawer,
+  IconButton,
   List,
   ListItemButton,
   ListItemIcon,
@@ -18,8 +19,10 @@ import PrecisionManufacturingOutlinedIcon from "@mui/icons-material/PrecisionMan
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import LogoutIcon from "@mui/icons-material/Logout";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { useAuth } from "../context/AuthContext";
 
 const DRAWER_WIDTH = 232;
@@ -46,7 +49,10 @@ const navItems = [
 const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, clearCompany, companyName, companyRole } = useAuth();
+  const items = companyRole === "owner"
+    ? [...navItems, { label: "Empleados", path: "/employees", icon: <GroupOutlinedIcon fontSize="small" /> }]
+    : navItems;
 
   const isActive = (path: string, exact?: boolean) => {
     if (exact) return location.pathname === path;
@@ -150,9 +156,26 @@ const MainLayout = () => {
           </Box>
         </Box>
 
+        {/* Empresa activa */}
+        {companyName && (
+          <Box sx={{ px: 2.5, py: 1.5, borderBottom: "1px solid #1A1C24", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+            <Typography noWrap sx={{ fontSize: "0.78rem", color: "#8B92A7", fontWeight: 500 }}>
+              {companyName}
+            </Typography>
+            <IconButton
+              size="small"
+              title="Cambiar empresa"
+              onClick={() => { clearCompany(); navigate("/select-company"); }}
+              sx={{ color: "#6B7280", "&:hover": { color: "#E8E9EB" } }}
+            >
+              <SwapHorizIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
+
         {/* Nav items */}
         <List sx={{ px: 1.5, py: 2, flex: 1, gap: 0.25, display: "flex", flexDirection: "column" }}>
-          {navItems.map((item) => {
+          {items.map((item) => {
             const active = isActive(item.path, item.exact);
             return (
               <ListItemButton

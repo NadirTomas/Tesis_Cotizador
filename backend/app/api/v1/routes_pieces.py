@@ -4,13 +4,14 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from app.services.auth_guard import get_current_user
+from app.services.company_guard import get_current_company
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.company_member import CompanyMember
 from app.models.material import Material
 from app.models.piece import Piece
 from app.services.dxf_analysis import analyze_dxf
@@ -26,10 +27,14 @@ limiter = Limiter(key_func=get_remote_address)
 settings = get_settings()
 
 
-def _get_active_material(db: Session, material_id: int) -> Material | None:
+def _get_active_material(db: Session, material_id: int, company_id: int) -> Material | None:
     return (
         db.query(Material)
-        .filter(Material.id == material_id, Material.active.is_(True))
+        .filter(
+            Material.id == material_id,
+            Material.company_id == company_id,
+            Material.active.is_(True),
+        )
         .first()
     )
 
@@ -38,14 +43,15 @@ def _get_active_material(db: Session, material_id: int) -> Material | None:
 def create_piece(
     payload: PieceCreate,
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user),
+    member: CompanyMember = Depends(get_current_company),
 ):
     if payload.material_id is not None:
-        material = _get_active_material(db, payload.material_id)
+        material = _get_active_material(db, payload.material_id, member.company_id)
         if not material:
             raise HTTPException(status_code=404, detail="Material not found")
     piece = Piece(**payload.dict())
-    piece.created_by_id = current_user
+    piece.company_id = member.company_id
+    piece.created_by_id = member.user_id
     db.add(piece)
     db.commit()
     db.refresh(piece)
@@ -53,15 +59,30 @@ def create_piece(
 
 
 @router.get("/", response_model=list[PieceRead])
-def list_pieces(db: Session = Depends(get_db)):
-    return db.query(Piece).filter(Piece.active.is_(True)).all()
+def list_pieces(
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
+    return (
+        db.query(Piece)
+        .filter(Piece.company_id == member.company_id, Piece.active.is_(True))
+        .all()
+    )
 
 
 @router.get("/{piece_id}", response_model=PieceRead)
-def get_piece(piece_id: int, db: Session = Depends(get_db)):
+def get_piece(
+    piece_id: int,
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
     piece = (
         db.query(Piece)
-        .filter(Piece.id == piece_id, Piece.active.is_(True))
+        .filter(
+            Piece.id == piece_id,
+            Piece.company_id == member.company_id,
+            Piece.active.is_(True),
+        )
         .first()
     )
     if not piece:
@@ -74,13 +95,17 @@ def update_piece(
     piece_id: int,
     payload: PieceUpdate,
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user),
+    member: CompanyMember = Depends(get_current_company),
 ):
-    piece = db.query(Piece).filter(Piece.id == piece_id).first()
+    piece = (
+        db.query(Piece)
+        .filter(Piece.id == piece_id, Piece.company_id == member.company_id)
+        .first()
+    )
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
     if payload.material_id is not None:
-        material = _get_active_material(db, payload.material_id)
+        material = _get_active_material(db, payload.material_id, member.company_id)
         if not material:
             raise HTTPException(status_code=404, detail="Material not found")
     update_data = payload.dict(exclude_unset=True)
@@ -95,9 +120,13 @@ def update_piece(
 def deactivate_piece(
     piece_id: int,
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user),
+    member: CompanyMember = Depends(get_current_company),
 ):
-    piece = db.query(Piece).filter(Piece.id == piece_id).first()
+    piece = (
+        db.query(Piece)
+        .filter(Piece.id == piece_id, Piece.company_id == member.company_id)
+        .first()
+    )
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
     piece.active = False
@@ -114,26 +143,30 @@ def upload_dxf(
     piece_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user),
+    member: CompanyMember = Depends(get_current_company),
 ):
     piece = (
         db.query(Piece)
-        .filter(Piece.id == piece_id, Piece.active.is_(True))
+        .filter(
+            Piece.id == piece_id,
+            Piece.company_id == member.company_id,
+            Piece.active.is_(True),
+        )
         .first()
     )
     if not piece:
-        logger.warning("DXF upload failed: piece not found", extra={"piece_id": piece_id, "user": current_user})
+        logger.warning("DXF upload failed: piece not found", extra={"piece_id": piece_id, "user": member.user_id})
         raise HTTPException(status_code=404, detail="Piece not found")
 
     _, ext = os.path.splitext(file.filename or "")
     if ext.lower() != ".dxf":
-        logger.warning("DXF upload failed: invalid file format", extra={"piece_id": piece_id, "filename": file.filename, "user": current_user})
+        logger.warning("DXF upload failed: invalid file format", extra={"piece_id": piece_id, "filename": file.filename, "user": member.user_id})
         raise HTTPException(status_code=400, detail="Only .dxf files are allowed")
 
     # Leer contenido del archivo
     dxf_content = file.file.read()
     if len(dxf_content) > settings.MAX_DXF_SIZE:
-        logger.warning("DXF upload failed: file too large", extra={"piece_id": piece_id, "file_size_mb": len(dxf_content) / 1024 / 1024, "user": current_user})
+        logger.warning("DXF upload failed: file too large", extra={"piece_id": piece_id, "file_size_mb": len(dxf_content) / 1024 / 1024, "user": member.user_id})
         raise HTTPException(status_code=400, detail=f"DXF file too large. Maximum {settings.MAX_DXF_SIZE / 1024 / 1024:.0f}MB.")
 
     # Analizar DXF guardando en temp file
@@ -170,13 +203,25 @@ def upload_dxf(
 
     db.commit()
     db.refresh(piece)
-    logger.info("DXF uploaded successfully", extra={"piece_id": piece_id, "dxf_filename": file.filename, "file_size_kb": len(dxf_content) / 1024, "length_cut_mm": length_cut_mm, "area_mm2": area_mm2, "user": current_user})
+    logger.info("DXF uploaded successfully", extra={"piece_id": piece_id, "dxf_filename": file.filename, "file_size_kb": len(dxf_content) / 1024, "length_cut_mm": length_cut_mm, "area_mm2": area_mm2, "user": member.user_id})
     return piece
 
 
 @router.get("/{piece_id}/preview")
-def get_piece_preview(piece_id: int, db: Session = Depends(get_db)):
-    piece = db.query(Piece).filter(Piece.id == piece_id, Piece.active.is_(True)).first()
+def get_piece_preview(
+    piece_id: int,
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
+    piece = (
+        db.query(Piece)
+        .filter(
+            Piece.id == piece_id,
+            Piece.company_id == member.company_id,
+            Piece.active.is_(True),
+        )
+        .first()
+    )
     if not piece or not piece.preview_data:
         raise HTTPException(status_code=404, detail="Preview not found")
     return StreamingResponse(iter([piece.preview_data]), media_type="image/png")

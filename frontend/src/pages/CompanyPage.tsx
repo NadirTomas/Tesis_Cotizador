@@ -10,16 +10,21 @@ import {
 } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 
+import { useAuth } from "../context/AuthContext";
+import AuthedImage from "../components/AuthedImage";
 import {
   getCompany,
   getCompanyLogoUrl,
   updateCompany,
   uploadLogo,
-  type CompanyConfig,
-} from "../services/company";
+  type Company,
+} from "../services/companies";
 
 const CompanyPage = () => {
-  const [data, setData] = useState<CompanyConfig | null>(null);
+  const { companyId, companyRole } = useAuth();
+  const isOwner = companyRole === "owner";
+
+  const [data, setData] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,18 +39,19 @@ const CompanyPage = () => {
   const [email, setEmail] = useState("");
 
   // logo
-  const [logoKey, setLogoKey] = useState(0); // fuerza re-render de la img
+  const [logoKey, setLogoKey] = useState(0); // fuerza re-fetch de la img
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [companyId]);
 
   async function load() {
+    if (!companyId) return;
     try {
       setLoading(true);
-      const c = await getCompany();
+      const c = await getCompany(companyId);
       setData(c);
       setCompanyName(c.company_name);
       setLegalName(c.legal_name ?? "");
@@ -62,10 +68,10 @@ const CompanyPage = () => {
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !companyId) return;
     setUploadingLogo(true);
     try {
-      await uploadLogo(file);
+      await uploadLogo(companyId, file);
       setLogoKey((k) => k + 1);
       setToast("Logo actualizado.");
     } catch {
@@ -77,10 +83,10 @@ const CompanyPage = () => {
   }
 
   async function handleSave() {
-    if (!companyName.trim()) return;
+    if (!companyName.trim() || !companyId) return;
     setSaving(true);
     try {
-      await updateCompany({
+      await updateCompany(companyId, {
         company_name: companyName.trim(),
         ...(legalName.trim() && { legal_name: legalName.trim() }),
         ...(cuit.trim() && { cuit: cuit.trim() }),
@@ -116,6 +122,7 @@ const CompanyPage = () => {
         </Box>
         <Typography sx={{ color: "text.secondary", fontSize: "0.82rem", ml: "19px" }}>
           Estos datos aparecen en el encabezado del PDF de cotización
+          {!isOwner && " · Solo el OWNER puede editarlos"}
         </Typography>
       </Box>
 
@@ -133,33 +140,33 @@ const CompanyPage = () => {
                 bgcolor: "background.paper", overflow: "hidden", flexShrink: 0,
               }}
             >
-              {data?.has_logo ? (
-                <Box
-                  component="img"
+              {data?.has_logo && companyId ? (
+                <AuthedImage
                   key={logoKey}
-                  src={`${getCompanyLogoUrl()}?v=${logoKey}`}
+                  src={getCompanyLogoUrl(companyId)}
                   alt="Logo"
                   sx={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                 />
               ) : (
                 <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>Sin logo</Typography>
               )}
             </Box>
-            <Box>
-              <Button
-                variant="outlined"
-                size="small"
-                disabled={uploadingLogo}
-                onClick={() => logoInputRef.current?.click()}
-              >
-                {uploadingLogo ? "Subiendo..." : "Subir logo"}
-              </Button>
-              <Typography sx={{ fontSize: "0.7rem", color: "text.secondary", mt: 0.5 }}>
-                PNG, JPG, SVG o WEBP. Aparece en el PDF.
-              </Typography>
-              <input ref={logoInputRef} type="file" accept=".png,.jpg,.jpeg,.svg,.webp" hidden onChange={handleLogoUpload} />
-            </Box>
+            {isOwner && (
+              <Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={uploadingLogo}
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  {uploadingLogo ? "Subiendo..." : "Subir logo"}
+                </Button>
+                <Typography sx={{ fontSize: "0.7rem", color: "text.secondary", mt: 0.5 }}>
+                  PNG, JPG, SVG o WEBP. Aparece en el PDF.
+                </Typography>
+                <input ref={logoInputRef} type="file" accept=".png,.jpg,.jpeg,.svg,.webp" hidden onChange={handleLogoUpload} />
+              </Box>
+            )}
           </Box>
         </Box>
 
@@ -176,6 +183,7 @@ const CompanyPage = () => {
               onChange={(e) => setCompanyName(e.target.value)}
               fullWidth
               required
+              disabled={!isOwner}
               helperText="Nombre que aparece en el encabezado del PDF"
             />
             <TextField
@@ -183,12 +191,14 @@ const CompanyPage = () => {
               value={legalName}
               onChange={(e) => setLegalName(e.target.value)}
               fullWidth
+              disabled={!isOwner}
             />
             <TextField
               label="CUIT (opcional)"
               value={cuit}
               onChange={(e) => setCuit(e.target.value)}
               fullWidth
+              disabled={!isOwner}
             />
           </Box>
         </Box>
@@ -205,12 +215,14 @@ const CompanyPage = () => {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               fullWidth
+              disabled={!isOwner}
             />
             <TextField
               label="Teléfono"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               fullWidth
+              disabled={!isOwner}
             />
             <TextField
               label="Email"
@@ -218,19 +230,22 @@ const CompanyPage = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               fullWidth
+              disabled={!isOwner}
             />
           </Box>
         </Box>
 
-        <Box display="flex" justifyContent="flex-end" mt={1}>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving || !companyName.trim()}
-          >
-            {saving ? "Guardando..." : "Guardar cambios"}
-          </Button>
-        </Box>
+        {isOwner && (
+          <Box display="flex" justifyContent="flex-end" mt={1}>
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              disabled={saving || !companyName.trim()}
+            >
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </Box>
+        )}
       </Box>
 
       <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)} message={toast} />

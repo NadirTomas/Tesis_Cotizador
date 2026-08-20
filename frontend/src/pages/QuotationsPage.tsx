@@ -27,6 +27,7 @@ import { usePaginatedList } from "../hooks/usePaginatedList";
 
 import { getClients, type Client } from "../services/clients";
 import { getQuotationPdfUrl, getQuotations, type Quotation } from "../services/quotations";
+import { openAuthedResource } from "../services/authedResource";
 
 const STATUS_LABELS: Record<string, { label: string; color: "default" | "warning" | "success" | "error" | "info" }> = {
   draft:     { label: "Borrador",  color: "warning" },
@@ -200,7 +201,7 @@ const QuotationsPage = () => {
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Descargar PDF">
-                        <IconButton size="small" onClick={() => window.open(getQuotationPdfUrl(q.id), "_blank")}>
+                        <IconButton size="small" onClick={() => openAuthedResource(getQuotationPdfUrl(q.id))}>
                           <PictureAsPdf fontSize="small" />
                         </IconButton>
                       </Tooltip>

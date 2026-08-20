@@ -34,7 +34,7 @@ export interface ClientUpdate {
 const BASE = `${API_BASE_URL}/clients`;
 
 export async function getClients(): Promise<Client[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(BASE, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener clientes");
   return res.json();
 }

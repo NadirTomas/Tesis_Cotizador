@@ -18,7 +18,7 @@ from reportlab.platypus import (
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models.company import CompanyConfig
+from app.models.company import Company
 from app.models.quotation import Quotation
 
 # ─── Paleta ───────────────────────────────────────────────────────────────────
@@ -233,13 +233,18 @@ def _load_thumbnail(preview_data: bytes | None, size_mm: float) -> Image | None:
 def generate_quotation_pdf(
     db: Session,
     quotation_id: int,
+    company_id: int,
     output_dir: Path | None = None,
 ) -> Path:
-    quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    quotation = (
+        db.query(Quotation)
+        .filter(Quotation.id == quotation_id, Quotation.company_id == company_id)
+        .first()
+    )
     if not quotation:
         raise ValueError("Quotation not found")
 
-    company = db.query(CompanyConfig).first()
+    company = db.query(Company).filter(Company.id == company_id).first()
     client  = quotation.client
     items   = quotation.items
 

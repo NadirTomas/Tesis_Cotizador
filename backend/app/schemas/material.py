@@ -26,6 +26,7 @@ class MaterialUpdate(BaseModel):
 
 class MaterialRead(MaterialBase):
     id: int
+    company_id: int
     active: bool
     created_at: datetime
     updated_at: datetime

@@ -1,6 +1,9 @@
 """
-Carga datos de prueba realistas.
+Carga datos de prueba realistas para una empresa demo ("MetalCorte SRL").
 Limpia los datos existentes antes de insertar.
+Todo usuario ya registrado en la base queda como OWNER de la empresa demo
+(no crea usuarios ni contraseñas nuevas: registrate primero con /auth/register
+si la base está vacía y volvé a correr el seed).
 Ejecutar con: venv/Scripts/python seed_data.py
 """
 from datetime import datetime, timedelta
@@ -8,12 +11,14 @@ from pathlib import Path
 
 from app.db.session import SessionLocal
 from app.models.client import Client
-from app.models.company import CompanyConfig
+from app.models.company import Company
+from app.models.company_member import CompanyMember, CompanyRole
 from app.models.machine_config import MachineConfig
 from app.models.material import Material
 from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
+from app.models.user import User
 from app.services.dxf_analysis import analyze_dxf
 from app.services.dxf_preview import generate_dxf_preview
 from app.services.quotation_calculator import calculate_quotation_item
@@ -28,12 +33,13 @@ db.query(Piece).delete()
 db.query(MachineConfig).delete()
 db.query(Material).delete()
 db.query(Client).delete()
-db.query(CompanyConfig).delete()
+db.query(CompanyMember).delete()
+db.query(Company).delete()
 db.commit()
 
 # ─── 1. Empresa ───────────────────────────────────────────────────────────────
 print("Cargando empresa...")
-company = CompanyConfig(
+company = Company(
     company_name="MetalCorte SRL",
     legal_name="MetalCorte Servicios Industriales SRL",
     cuit="30-71234567-8",
@@ -43,6 +49,16 @@ company = CompanyConfig(
 )
 db.add(company)
 db.commit()
+
+existing_users = db.query(User).all()
+if not existing_users:
+    print("  ATENCION: no hay usuarios registrados. Registrate con /auth/register")
+    print("  y volvé a correr este script para quedar como OWNER de la empresa demo.")
+else:
+    for user in existing_users:
+        db.add(CompanyMember(company_id=company.id, user_id=user.id, role=CompanyRole.OWNER.value))
+    db.commit()
+    print(f"  {len(existing_users)} usuario(s) existentes agregados como OWNER.")
 
 # ─── 2. Materiales ────────────────────────────────────────────────────────────
 print("Cargando materiales...")
@@ -55,7 +71,7 @@ materials_data = [
 ]
 mats = {}
 for m in materials_data:
-    obj = Material(**m)
+    obj = Material(company_id=company.id, **m)
     db.add(obj)
     db.flush()
     mats[m["name"]] = obj
@@ -73,7 +89,7 @@ configs_data = [
 machine_configs = {}
 for c in configs_data:
     mat = c.pop("material")
-    obj = MachineConfig(material_id=mat.id, **c)
+    obj = MachineConfig(company_id=company.id, material_id=mat.id, **c)
     db.add(obj)
     db.flush()
     machine_configs[mat.id] = obj
@@ -90,7 +106,7 @@ clients_data = [
 ]
 clients = []
 for c in clients_data:
-    obj = Client(**c)
+    obj = Client(company_id=company.id, **c)
     db.add(obj)
     db.flush()
     clients.append(obj)
@@ -114,6 +130,7 @@ for p in pieces_data:
     mat = p["material"]
 
     obj = Piece(
+        company_id=company.id,
         name=p["name"],
         description=p["description"],
         material_id=mat.id,
@@ -150,7 +167,6 @@ now = datetime.now()
 
 quotations_data = [
     dict(
-        number="COT-2026-001",
         client=clients[0],  # Talleres Rodríguez
         issue_date=now - timedelta(days=5),
         due_date=now + timedelta(days=2),
@@ -163,7 +179,6 @@ quotations_data = [
         ],
     ),
     dict(
-        number="COT-2026-002",
         client=clients[1],  # Construcciones Villalba
         issue_date=now - timedelta(days=2),
         due_date=now + timedelta(days=5),
@@ -176,7 +191,6 @@ quotations_data = [
         ],
     ),
     dict(
-        number="COT-2026-003",
         client=clients[2],  # Industrias Norpatagónica
         issue_date=now,
         due_date=now + timedelta(days=7),
@@ -191,10 +205,11 @@ quotations_data = [
     ),
 ]
 
-for qd in quotations_data:
+for idx, qd in enumerate(quotations_data, start=1):
     client = qd["client"]
     q = Quotation(
-        number=qd["number"],
+        number=f"COT-{idx:04d}",
+        company_id=company.id,
         client_id=client.id,
         issue_date=qd["issue_date"],
         due_date=qd["due_date"],
@@ -223,7 +238,7 @@ for qd in quotations_data:
         )
         db.add(item)
         db.flush()
-        calculate_quotation_item(db, item)
+        calculate_quotation_item(db, item, company.id)
 
     db.refresh(q)
     print(f"  {q.number} — Total ARS: ${q.total_ars:,.0f}")
@@ -234,9 +249,9 @@ db.commit()
 print("\nGenerando PDFs...")
 from app.services.pdf_generator import generate_quotation_pdf
 
-all_quotations = db.query(Quotation).all()
+all_quotations = db.query(Quotation).filter(Quotation.company_id == company.id).all()
 for q in all_quotations:
-    path = generate_quotation_pdf(db, q.id, output_dir=Path("data/pdfs"))
+    path = generate_quotation_pdf(db, q.id, company.id, output_dir=Path("data/pdfs"))
     print(f"  PDF: {path}")
 
 db.close()

@@ -1,4 +1,14 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, LargeBinary, String, func
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -7,9 +17,11 @@ from app.db.session import Base
 # Paso 8: Modelo de Quotation (cabecera de presupuesto)
 class Quotation(Base):
     __tablename__ = "quotations"
+    __table_args__ = (UniqueConstraint("company_id", "number", name="uq_quotation_company_number"),)
 
     id = Column(Integer, primary_key=True, index=True)
     number = Column(String, nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     issue_date = Column(DateTime, nullable=False)
     due_date = Column(DateTime, nullable=True)

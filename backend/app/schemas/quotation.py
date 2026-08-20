@@ -1,26 +1,29 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
-class QuotationBase(BaseModel):
-    number: str
+class QuotationCreate(BaseModel):
     client_id: int
     issue_date: datetime
     due_date: Optional[datetime] = None
     currency: str = "ARS"
     exchange_rate: Optional[float] = None
     notes: Optional[str] = None
-    status: str = "draft"
 
 
-class QuotationCreate(QuotationBase):
-    pass
-
-
-class QuotationRead(QuotationBase):
+class QuotationRead(BaseModel):
     id: int
+    number: str
+    company_id: int
+    client_id: int
+    issue_date: datetime
+    due_date: Optional[datetime] = None
+    currency: str
+    exchange_rate: Optional[float] = None
+    notes: Optional[str] = None
+    status: str
     total_ars: float
     total_usd: float
     has_pdf: bool = False
@@ -30,8 +33,11 @@ class QuotationRead(QuotationBase):
 
     model_config = {"from_attributes": True}
 
+    @model_validator(mode="before")
     @classmethod
-    def from_orm(cls, obj):
-        data = obj.__dict__.copy()
-        data["has_pdf"] = bool(obj.pdf_data)
-        return cls(**data)
+    def _compute_has_pdf(cls, obj):
+        if isinstance(obj, dict):
+            return obj
+        data = {k: v for k, v in vars(obj).items() if not k.startswith("_")}
+        data["has_pdf"] = bool(getattr(obj, "pdf_data", None))
+        return data

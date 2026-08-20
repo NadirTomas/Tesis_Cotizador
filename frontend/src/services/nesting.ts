@@ -58,7 +58,7 @@ export interface DashboardStats {
 }
 
 export async function getStats(): Promise<DashboardStats> {
-  const res = await apiFetch(`${API_BASE_URL}/quotations/stats`);
+  const res = await apiFetch(`${API_BASE_URL}/quotations/stats`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al cargar estadísticas");
   return res.json();
 }

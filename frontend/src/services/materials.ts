@@ -31,7 +31,7 @@ export interface MaterialUpdate {
 const BASE = `${API_BASE_URL}/materials`;
 
 export async function getMaterials(): Promise<Material[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(BASE, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener materiales");
   return res.json();
 }

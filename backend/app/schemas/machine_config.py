@@ -26,6 +26,7 @@ class MachineConfigUpdate(BaseModel):
 
 class MachineConfigRead(MachineConfigBase):
     id: int
+    company_id: int
     active: bool
     created_at: datetime
     updated_at: datetime

@@ -30,6 +30,7 @@ import { useNavigate } from "react-router-dom";
 import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
+import { openAuthedResource } from "../services/authedResource";
 import {
   createQuotation,
   createQuotationItem,
@@ -46,11 +47,6 @@ function today(): string {
   return new Date().toISOString().split("T")[0];
 }
 
-function generateNumber(): string {
-  const d = new Date();
-  return `COT-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function formatARS(value: number): string {
   return value.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 }
@@ -58,7 +54,6 @@ function formatARS(value: number): string {
 // ─── Paso 1 ───────────────────────────────────────────────────────────────────
 function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quotation) => void }) {
   const [clientId, setClientId] = useState<number | "">("");
-  const [number, setNumber] = useState(generateNumber());
   const [issueDate, setIssueDate] = useState(today());
   const [dueDate, setDueDate] = useState("");
   const [currency, setCurrency] = useState("ARS");
@@ -68,12 +63,11 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
   const [error, setError] = useState<string | null>(null);
 
   async function handleCreate() {
-    if (!clientId || !number.trim() || !issueDate) return;
+    if (!clientId || !issueDate) return;
     setSaving(true);
     setError(null);
     try {
       const q = await createQuotation({
-        number: number.trim(),
         client_id: clientId as number,
         issue_date: issueDate + "T00:00:00",
         ...(dueDate && { due_date: dueDate + "T00:00:00" }),
@@ -98,7 +92,6 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
           {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
         </Select>
       </FormControl>
-      <TextField label="Número de cotización" value={number} onChange={(e) => setNumber(e.target.value)} fullWidth required />
       <TextField label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} fullWidth required InputLabelProps={{ shrink: true }} />
       <TextField label="Fecha de vencimiento (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
       <FormControl fullWidth>
@@ -111,7 +104,7 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
       <TextField label="Tipo de cambio (opcional)" type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} fullWidth placeholder="Ej: 1050" />
       <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline rows={2} />
       <Box display="flex" justifyContent="flex-end" mt={1}>
-        <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !number.trim() || !issueDate}>
+        <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !issueDate}>
           {saving ? "Creando..." : "Crear cotización →"}
         </Button>
       </Box>
@@ -372,7 +365,7 @@ function Step3({ quotation, items, pieces, materials, clients }: Step3Props) {
 
       <Box display="flex" justifyContent="space-between">
         <Button onClick={() => navigate("/quotations")}>← Ir a cotizaciones</Button>
-        <Button variant="contained" startIcon={<PictureAsPdf />} onClick={() => window.open(getQuotationPdfUrl(quotation.id), "_blank")}>
+        <Button variant="contained" startIcon={<PictureAsPdf />} onClick={() => openAuthedResource(getQuotationPdfUrl(quotation.id))}>
           Descargar PDF
         </Button>
       </Box>

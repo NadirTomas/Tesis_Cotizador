@@ -33,6 +33,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
+import { openAuthedResource } from "../services/authedResource";
 import {
   createQuotationItem,
   deleteQuotationItem,
@@ -218,7 +219,7 @@ const QuotationDetailPage = () => {
               {action.label}
             </Button>
           ))}
-          <Button variant="contained" startIcon={<PictureAsPdf />} onClick={() => window.open(getQuotationPdfUrl(quotation.id), "_blank")}>
+          <Button variant="contained" startIcon={<PictureAsPdf />} onClick={() => openAuthedResource(getQuotationPdfUrl(quotation.id))}>
             PDF
           </Button>
         </Box>

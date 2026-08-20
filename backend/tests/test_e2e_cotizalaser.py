@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db.init_db import init_db
+from app.db.session import engine
 from app.main import app
 
 
@@ -57,14 +58,31 @@ client = TestClient(app)
 
 
 def _reset_db_file() -> None:
+    engine.dispose()  # libera conexiones abiertas (Windows bloquea el archivo si no)
     db_path = Path("cotizalaser.db")
     if db_path.exists():
         db_path.unlink()
 
 
+def _register_and_create_company(email: str) -> tuple[dict, int]:
+    res = client.post("/auth/register", json={"email": email, "password": "Password1!"})
+    assert res.status_code == 201
+    token = res.json()["access_token"]
+    res = client.post(
+        "/companies",
+        json={"company_name": "Empresa Test"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 201
+    company_id = res.json()["id"]
+    headers = {"Authorization": f"Bearer {token}", "X-Company-Id": str(company_id)}
+    return headers, company_id
+
+
 def test_full_flow_rect_100x50():
     _reset_db_file()
     init_db()
+    headers, _ = _register_and_create_company("e2e@test.com")
 
     response = client.post(
         "/materials",
@@ -75,6 +93,7 @@ def test_full_flow_rect_100x50():
             "sheet_height_mm": 1000.0,
             "sheet_cost_ars": 1000.0,
         },
+        headers=headers,
     )
     assert response.status_code == 200
     material_id = response.json()["id"]
@@ -87,6 +106,7 @@ def test_full_flow_rect_100x50():
             "machine_cost_per_hour_ars": 600.0,
             "setup_time_min": 0.0,
         },
+        headers=headers,
     )
     assert response.status_code == 200
 
@@ -97,6 +117,7 @@ def test_full_flow_rect_100x50():
             "description": "prueba e2e",
             "material_id": material_id,
         },
+        headers=headers,
     )
     assert response.status_code == 200
     piece_id = response.json()["id"]
@@ -106,6 +127,7 @@ def test_full_flow_rect_100x50():
         files={
             "file": ("rect_100x50.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")
         },
+        headers=headers,
     )
     assert response.status_code == 200
     piece_data = response.json()
@@ -122,6 +144,7 @@ def test_full_flow_rect_100x50():
             "address": "Calle Falsa 123",
             "notes": "Test e2e",
         },
+        headers=headers,
     )
     assert response.status_code == 200
     client_id = response.json()["id"]
@@ -129,18 +152,19 @@ def test_full_flow_rect_100x50():
     response = client.post(
         "/quotations",
         json={
-            "number": "TEST-0001",
             "client_id": client_id,
             "issue_date": "2026-02-06T00:00:00",
             "due_date": "2026-02-20T00:00:00",
             "currency": "ARS",
             "exchange_rate": 1.0,
             "notes": "Test e2e quotation",
-            "status": "draft",
         },
+        headers=headers,
     )
     assert response.status_code == 200
-    quotation_id = response.json()["id"]
+    quotation = response.json()
+    quotation_id = quotation["id"]
+    assert quotation["number"] == "COT-0001"
 
     response = client.post(
         "/quotation-items",
@@ -151,6 +175,7 @@ def test_full_flow_rect_100x50():
             "quantity": 2,
             "margin_percent": 20.0,
         },
+        headers=headers,
     )
     assert response.status_code == 200
     item = response.json()
@@ -160,12 +185,12 @@ def test_full_flow_rect_100x50():
     assert item["cost_labor_ars"] == pytest.approx(1.8, rel=1e-2)
     assert item["total_price_ars"] == pytest.approx(21.36, rel=1e-2)
 
-    response = client.get(f"/quotations/{quotation_id}")
+    response = client.get(f"/quotations/{quotation_id}", headers=headers)
     assert response.status_code == 200
     quotation = response.json()
     assert quotation["total_ars"] == pytest.approx(21.36, rel=1e-2)
     assert quotation["total_usd"] == pytest.approx(21.36, rel=1e-2)
 
-    response = client.get(f"/quotations/{quotation_id}/pdf")
+    response = client.get(f"/quotations/{quotation_id}/pdf", headers=headers)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"

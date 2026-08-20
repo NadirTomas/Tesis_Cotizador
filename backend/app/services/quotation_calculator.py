@@ -9,18 +9,24 @@ from app.models.quotation_item import QuotationItem
 
 
 # Paso 10: Motor de cálculo automático de cotización
-def calculate_quotation_item(db: Session, quotation_item: QuotationItem) -> None:
+def calculate_quotation_item(db: Session, quotation_item: QuotationItem, company_id: int) -> None:
     """
     Calcula automáticamente los costos y precios de un QuotationItem
-    y actualiza el item y su Quotation asociada.
+    y actualiza el item y su Quotation asociada. Todas las entidades
+    relacionadas se validan contra company_id (defensa en profundidad,
+    además de la validación que ya hace el router al crear el item).
     """
-    piece = db.query(Piece).filter(Piece.id == quotation_item.piece_id).first()
+    piece = (
+        db.query(Piece)
+        .filter(Piece.id == quotation_item.piece_id, Piece.company_id == company_id)
+        .first()
+    )
     if not piece:
         raise ValueError("Piece asociada no encontrada")
 
     material = (
         db.query(Material)
-        .filter(Material.id == quotation_item.material_id)
+        .filter(Material.id == quotation_item.material_id, Material.company_id == company_id)
         .first()
     )
     if not material:
@@ -30,6 +36,7 @@ def calculate_quotation_item(db: Session, quotation_item: QuotationItem) -> None
         db.query(MachineConfig)
         .filter(
             MachineConfig.material_id == material.id,
+            MachineConfig.company_id == company_id,
             MachineConfig.active.is_(True),
         )
         .first()
@@ -75,7 +82,7 @@ def calculate_quotation_item(db: Session, quotation_item: QuotationItem) -> None
 
     quotation = (
         db.query(Quotation)
-        .filter(Quotation.id == quotation_item.quotation_id)
+        .filter(Quotation.id == quotation_item.quotation_id, Quotation.company_id == company_id)
         .first()
     )
     if not quotation:

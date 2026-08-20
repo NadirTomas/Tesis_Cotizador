@@ -28,6 +28,7 @@ class ClientUpdate(BaseModel):
 
 class ClientRead(ClientBase):
     id: int
+    company_id: int
     active: bool
     created_at: datetime
     updated_at: datetime

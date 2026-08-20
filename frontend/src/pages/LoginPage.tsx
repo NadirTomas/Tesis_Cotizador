@@ -10,13 +10,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { loginRequest } from "../services/auth";
+import { getMyCompanies } from "../services/companies";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, selectCompany } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +27,15 @@ export default function LoginPage() {
     try {
       const res = await loginRequest(email, password);
       login(res.access_token);
-      navigate("/");
+      const companies = await getMyCompanies();
+      if (companies.length === 1) {
+        selectCompany(companies[0].id, companies[0].role, companies[0].company_name);
+        navigate("/");
+      } else if (companies.length === 0) {
+        navigate("/companies/new");
+      } else {
+        navigate("/select-company");
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión");
     } finally {

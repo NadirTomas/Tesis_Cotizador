@@ -30,7 +30,7 @@ export interface MachineConfigUpdate {
 const BASE = `${API_BASE_URL}/machine-configs`;
 
 export async function getMachineConfigs(): Promise<MachineConfig[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(BASE, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener configuraciones de máquina");
   return res.json();
 }

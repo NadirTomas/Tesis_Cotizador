@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.routes_auth import router as auth_router
 from app.api.v1.routes_clients import router as clients_router
-from app.api.v1.routes_company import router as company_router
+from app.api.v1.routes_companies import router as companies_router
 from app.api.v1.routes_health import router as health_router
 from app.api.v1.routes_machine_configs import router as machine_configs_router
 from app.api.v1.routes_materials import router as materials_router
@@ -66,7 +66,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
-app.include_router(company_router)
+app.include_router(companies_router)
 app.include_router(materials_router)
 app.include_router(clients_router)
 app.include_router(machine_configs_router)

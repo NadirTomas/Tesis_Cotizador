@@ -18,14 +18,12 @@ export interface Quotation {
 }
 
 export interface QuotationCreate {
-  number: string;
   client_id: number;
   issue_date: string;
   due_date?: string;
   currency?: string;
   exchange_rate?: number;
   notes?: string;
-  status?: string;
 }
 
 export interface QuotationItem {
@@ -55,13 +53,13 @@ const BASE = `${API_BASE_URL}/quotations`;
 const ITEMS_BASE = `${API_BASE_URL}/quotation-items`;
 
 export async function getQuotations(): Promise<Quotation[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(BASE, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener cotizaciones");
   return res.json();
 }
 
 export async function getQuotation(id: number): Promise<Quotation> {
-  const res = await apiFetch(`${BASE}/${id}`);
+  const res = await apiFetch(`${BASE}/${id}`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener cotización");
   return res.json();
 }
@@ -77,7 +75,7 @@ export async function createQuotation(data: QuotationCreate): Promise<Quotation>
 }
 
 export async function getQuotationItems(quotationId: number): Promise<QuotationItem[]> {
-  const res = await apiFetch(`${ITEMS_BASE}/quotation/${quotationId}`);
+  const res = await apiFetch(`${ITEMS_BASE}/quotation/${quotationId}`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener ítems de cotización");
   return res.json();
 }

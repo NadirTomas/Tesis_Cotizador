@@ -1,7 +1,8 @@
 from app.db.session import Base, engine
 from app.core.config import get_settings
 from app.models.client import Client
-from app.models.company import CompanyConfig
+from app.models.company import Company
+from app.models.company_member import CompanyMember
 from app.models.machine_config import MachineConfig
 from app.models.material import Material
 from app.models.piece import Piece

@@ -40,13 +40,13 @@ export interface DxfAnalysisResult {
 const BASE = `${API_BASE_URL}/pieces`;
 
 export async function getPieces(): Promise<Piece[]> {
-  const res = await apiFetch(BASE);
+  const res = await apiFetch(BASE, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener piezas");
   return res.json();
 }
 
 export async function getPiece(id: number): Promise<Piece> {
-  const res = await apiFetch(`${BASE}/${id}`);
+  const res = await apiFetch(`${BASE}/${id}`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error("Error al obtener pieza");
   return res.json();
 }

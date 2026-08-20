@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.services.auth_guard import get_current_user
+from app.models.company_member import CompanyMember
+from app.services.company_guard import get_current_company
 from app.models.piece import Piece
 from app.services.dxf_analysis import get_bounding_box
 from app.services.nesting import NestingResult, calculate_nesting
@@ -25,9 +26,17 @@ class NestingRequest(BaseModel):
 def calculate(
     payload: NestingRequest,
     db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user),
+    member: CompanyMember = Depends(get_current_company),
 ):
-    piece = db.query(Piece).filter(Piece.id == payload.piece_id, Piece.active.is_(True)).first()
+    piece = (
+        db.query(Piece)
+        .filter(
+            Piece.id == payload.piece_id,
+            Piece.company_id == member.company_id,
+            Piece.active.is_(True),
+        )
+        .first()
+    )
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
     if not piece.dxf_data:

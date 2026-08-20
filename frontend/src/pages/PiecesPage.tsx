@@ -28,6 +28,7 @@ import {
 } from "@mui/material";
 import { useMemo, useEffect, useRef, useState } from "react";
 import { usePaginatedList } from "../hooks/usePaginatedList";
+import AuthedImage from "../components/AuthedImage";
 
 import { getMaterials, type Material } from "../services/materials";
 import {
@@ -256,8 +257,7 @@ const PiecesPage = () => {
                 <TableRow key={p.id}>
                   <TableCell sx={{ py: 0.5 }}>
                     {p.has_preview ? (
-                      <Box
-                        component="img"
+                      <AuthedImage
                         src={getPiecePreviewUrl(p.id)}
                         alt={p.name}
                         sx={{
@@ -270,6 +270,9 @@ const PiecesPage = () => {
                           borderColor: "divider",
                           display: "block",
                         }}
+                        fallback={
+                          <Box sx={{ width: 44, height: 44, borderRadius: 1, bgcolor: "#1A1C24", border: "1px solid", borderColor: "divider" }} />
+                        }
                       />
                     ) : (
                       <Box sx={{ width: 44, height: 44, borderRadius: 1, bgcolor: "#1A1C24", border: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "center" }}>

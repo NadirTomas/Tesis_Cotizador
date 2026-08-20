@@ -23,6 +23,7 @@ class PieceUpdate(BaseModel):
 
 class PieceRead(PieceBase):
     id: int
+    company_id: int
     dxf_filename: Optional[str] = None
     has_dxf: bool = False
     has_preview: bool = False
