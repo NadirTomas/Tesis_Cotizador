@@ -12,9 +12,13 @@ from app.db.session import get_db
 from app.models.client import Client
 from app.models.company_member import CompanyMember
 from app.models.quotation import Quotation
+from app.models.quotation_event import QuotationEvent
+from app.models.user import User
 from app.schemas.quotation import QuotationCreate, QuotationRead
+from app.schemas.quotation_event import QuotationEventRead
 from app.services.pdf_generator import generate_quotation_pdf
 from app.services.company_guard import get_current_company
+from app.services.quotation_events import log_event
 
 
 router = APIRouter(prefix="/quotations", tags=["quotations"])
@@ -25,6 +29,13 @@ VALID_TRANSITIONS: dict[str, list[str]] = {
     "sent":      ["accepted", "cancelled"],
     "accepted":  [],
     "cancelled": [],
+}
+
+STATUS_LABELS: dict[str, str] = {
+    "draft": "Borrador",
+    "sent": "Enviado",
+    "accepted": "Aceptado",
+    "cancelled": "Cancelado",
 }
 
 
@@ -81,6 +92,8 @@ def create_quotation(
     )
     quotation.created_by_id = member.user_id
     db.add(quotation)
+    db.flush()
+    log_event(db, quotation.id, "created", "Cotización creada", member.user_id)
     db.commit()
     db.refresh(quotation)
     return quotation
@@ -214,10 +227,50 @@ def update_status(
             status_code=400,
             detail=f"Transición inválida: '{quotation.status}' → '{status}'.",
         )
+    previous_status = quotation.status
     quotation.status = status
+    log_event(
+        db, quotation.id, "status_changed",
+        f"{STATUS_LABELS.get(previous_status, previous_status)} → {STATUS_LABELS.get(status, status)}",
+        member.user_id,
+    )
     db.commit()
     db.refresh(quotation)
     return quotation
+
+
+@router.get("/{quotation_id}/events", response_model=list[QuotationEventRead])
+def list_quotation_events(
+    quotation_id: int,
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
+    quotation = (
+        db.query(Quotation)
+        .filter(Quotation.id == quotation_id, Quotation.company_id == member.company_id)
+        .first()
+    )
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    rows = (
+        db.query(QuotationEvent, User.email)
+        .outerjoin(User, User.id == QuotationEvent.created_by_id)
+        .filter(QuotationEvent.quotation_id == quotation_id)
+        .order_by(QuotationEvent.id.desc())
+        .all()
+    )
+    return [
+        QuotationEventRead(
+            id=event.id,
+            event_type=event.event_type,
+            description=event.description,
+            created_by_id=event.created_by_id,
+            created_by_email=email,
+            created_at=event.created_at,
+        )
+        for event, email in rows
+    ]
 
 
 @router.get("/{quotation_id}/pdf")

@@ -49,6 +49,15 @@ export interface QuotationItemCreate {
   margin_percent: number;
 }
 
+export interface QuotationEvent {
+  id: number;
+  event_type: string;
+  description: string;
+  created_by_id: number | null;
+  created_by_email: string | null;
+  created_at: string;
+}
+
 const BASE = `${API_BASE_URL}/quotations`;
 const ITEMS_BASE = `${API_BASE_URL}/quotation-items`;
 
@@ -110,4 +119,10 @@ export async function deleteQuotationItem(itemId: number): Promise<void> {
     headers: getAuthHeaders(),
   });
   if (!res.ok) throw new Error("Error al eliminar ítem");
+}
+
+export async function getQuotationEvents(id: number): Promise<QuotationEvent[]> {
+  const res = await apiFetch(`${BASE}/${id}/events`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Error al obtener el historial");
+  return res.json();
 }

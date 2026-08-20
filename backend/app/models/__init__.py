@@ -7,6 +7,7 @@ from app.models.machine_config import MachineConfig
 from app.models.material import Material
 from app.models.piece import Piece
 from app.models.quotation import Quotation
+from app.models.quotation_event import QuotationEvent
 from app.models.quotation_item import QuotationItem
 from app.models.user import User
 
@@ -19,6 +20,7 @@ __all__ = [
     "Material",
     "Piece",
     "Quotation",
+    "QuotationEvent",
     "QuotationItem",
     "User",
 ]

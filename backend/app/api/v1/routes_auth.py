@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import Token, UserLogin, UserRegister
 from app.services.auth import create_access_token, hash_password, verify_password
+from app.services.auth_guard import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -44,4 +45,16 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="Usuario inactivo")
     token = create_access_token({"sub": user.email, "user_id": user.id})
     logger.info("Login successful", extra={"user_id": user.id, "email": email_lower})
+    return Token(access_token=token)
+
+
+@router.post("/refresh", response_model=Token)
+def refresh(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Usuario inválido")
+    token = create_access_token({"sub": user.email, "user_id": user.id})
     return Token(access_token=token)

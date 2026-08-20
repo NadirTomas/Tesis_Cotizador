@@ -19,10 +19,9 @@ class JSONFormatter(logging.Formatter):
         # Agregar contexto adicional si existe
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
-        if hasattr(record, "user_id"):
-            log_obj["user_id"] = record.user_id
-        if hasattr(record, "request_id"):
-            log_obj["request_id"] = record.request_id
+        for field in ("user_id", "request_id", "source", "path", "method", "url", "stack"):
+            if hasattr(record, field):
+                log_obj[field] = getattr(record, field)
 
         return json.dumps(log_obj, ensure_ascii=False)
 

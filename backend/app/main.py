@@ -1,14 +1,16 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.routes_admin import router as admin_router
 from app.api.v1.routes_auth import router as auth_router
+from app.api.v1.routes_client_errors import router as client_errors_router
 from app.api.v1.routes_clients import router as clients_router
 from app.api.v1.routes_companies import router as companies_router
 from app.api.v1.routes_health import router as health_router
@@ -65,9 +67,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "Unhandled exception",
+        extra={"path": request.url.path, "method": request.method},
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 app.include_router(health_router)
 app.include_router(admin_router)
 app.include_router(auth_router)
+app.include_router(client_errors_router)
 app.include_router(companies_router)
 app.include_router(materials_router)
 app.include_router(clients_router)

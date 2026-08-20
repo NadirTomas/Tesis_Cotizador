@@ -1,4 +1,14 @@
-import { ArrowBack, Delete, PictureAsPdf, WarningAmber } from "@mui/icons-material";
+import {
+  AddCircleOutline,
+  ArrowBack,
+  Delete,
+  Edit,
+  PictureAsPdf,
+  PlaylistAdd,
+  RemoveCircleOutline,
+  SyncAlt,
+  WarningAmber,
+} from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -38,12 +48,22 @@ import {
   createQuotationItem,
   deleteQuotationItem,
   getQuotation,
+  getQuotationEvents,
   getQuotationItems,
   getQuotationPdfUrl,
   updateQuotationStatus,
   type Quotation,
+  type QuotationEvent,
   type QuotationItem,
 } from "../services/quotations";
+
+const EVENT_ICONS: Record<string, React.ElementType> = {
+  created: AddCircleOutline,
+  status_changed: SyncAlt,
+  item_added: PlaylistAdd,
+  item_updated: Edit,
+  item_removed: RemoveCircleOutline,
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: "default" | "warning" | "success" | "error" | "info" }> = {
   draft:     { label: "Borrador",  color: "warning" },
@@ -70,6 +90,7 @@ const QuotationDetailPage = () => {
 
   const [quotation, setQuotation] = useState<Quotation | null>(null);
   const [items, setItems] = useState<QuotationItem[]>([]);
+  const [events, setEvents] = useState<QuotationEvent[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -92,18 +113,20 @@ const QuotationDetailPage = () => {
   async function loadAll() {
     try {
       setLoading(true);
-      const [q, its, c, p, m] = await Promise.all([
+      const [q, its, c, p, m, ev] = await Promise.all([
         getQuotation(quotationId),
         getQuotationItems(quotationId),
         getClients(),
         getPieces(),
         getMaterials(),
+        getQuotationEvents(quotationId),
       ]);
       setQuotation(q);
       setItems(its);
       setClients(c);
       setPieces(p);
       setMaterials(m);
+      setEvents(ev);
     } catch {
       setError("No se pudo cargar la cotización.");
     } finally {
@@ -321,6 +344,45 @@ const QuotationDetailPage = () => {
             </Box>
           )}
         </Paper>
+      </Box>
+
+      <Divider />
+
+      {/* Historial */}
+      <Box>
+        <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "0.78rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "text.secondary", mb: 1.5 }}>
+          Historial
+        </Typography>
+        {events.length === 0 ? (
+          <Typography color="text.secondary" fontSize="0.875rem">Sin actividad registrada.</Typography>
+        ) : (
+          <Paper variant="outlined" sx={{ p: 0 }}>
+            {events.map((ev, idx) => {
+              const Icon = EVENT_ICONS[ev.event_type] ?? AddCircleOutline;
+              return (
+                <Box
+                  key={ev.id}
+                  display="flex"
+                  alignItems="flex-start"
+                  gap={1.5}
+                  sx={{
+                    p: 1.5,
+                    borderBottom: idx < events.length - 1 ? "1px solid" : "none",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Icon fontSize="small" sx={{ color: "text.secondary", mt: 0.25 }} />
+                  <Box flex={1} minWidth={0}>
+                    <Typography sx={{ fontSize: "0.85rem" }}>{ev.description}</Typography>
+                    <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>
+                      {ev.created_by_email ?? "Sistema"} · {new Date(ev.created_at).toLocaleString("es-AR")}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
+          </Paper>
+        )}
       </Box>
 
       <Divider />

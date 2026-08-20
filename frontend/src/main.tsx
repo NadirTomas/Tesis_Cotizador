@@ -7,6 +7,9 @@ import { theme } from "./theme/theme";
 import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./context/AuthContext";
+import { installErrorReporting } from "./errorReporting";
+
+installErrorReporting();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -1,5 +1,8 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { refreshTokenRequest } from "../services/auth";
+
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 horas
 
 interface AuthContextType {
   token: string | null;
@@ -62,6 +65,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCompanyRole(null);
     setCompanyName(null);
   };
+
+  // Refresco silencioso: mientras haya sesión activa, renueva el token
+  // periódicamente para que una pestaña abierta mucho tiempo no expire de
+  // golpe. Si falla (token ya vencido), no hace nada — el 401 handler de
+  // apiFetch ya cubre ese caso en la próxima request real.
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      refreshTokenRequest()
+        .then((res) => {
+          localStorage.setItem("auth_token", res.access_token);
+          setToken(res.access_token);
+        })
+        .catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [token]);
 
   return (
     <AuthContext.Provider

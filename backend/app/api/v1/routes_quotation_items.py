@@ -10,9 +10,12 @@ from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
 from app.schemas.quotation_item import QuotationItemCreate, QuotationItemRead, QuotationItemUpdate
 from app.services.quotation_calculator import calculate_quotation_item
+from app.services.quotation_events import log_event
 
 
 router = APIRouter(prefix="/quotation-items", tags=["quotation-items"])
+
+_FIELD_LABELS = {"quantity": "Cantidad", "margin_percent": "Margen"}
 
 
 @router.post("/", response_model=QuotationItemRead)
@@ -47,6 +50,10 @@ def create_quotation_item(
     item.created_by_id = member.user_id
     db.add(item)
     db.flush()
+    log_event(
+        db, item.quotation_id, "item_added",
+        f"Pieza agregada: {piece.name} ×{item.quantity}", member.user_id,
+    )
     try:
         calculate_quotation_item(db, item, member.company_id)
     except ValueError as exc:
@@ -92,9 +99,12 @@ def update_quotation_item(
         raise HTTPException(status_code=404, detail="Item not found")
 
     update_data = payload.dict(exclude_unset=True)
+    changes = [f"{_FIELD_LABELS.get(key, key)}: {getattr(item, key)} → {value}" for key, value in update_data.items()]
     for key, value in update_data.items():
         setattr(item, key, value)
     db.flush()
+    if changes:
+        log_event(db, item.quotation_id, "item_updated", "Ítem actualizado — " + ", ".join(changes), member.user_id)
     try:
         calculate_quotation_item(db, item, member.company_id)
     except ValueError as exc:
@@ -118,6 +128,9 @@ def delete_quotation_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     quotation = db.query(Quotation).filter(Quotation.id == item.quotation_id).first()
+    piece = db.query(Piece).filter(Piece.id == item.piece_id).first()
+    piece_label = piece.name if piece else f"pieza #{item.piece_id}"
+    log_event(db, item.quotation_id, "item_removed", f"Pieza eliminada: {piece_label}", member.user_id)
     db.delete(item)
     db.flush()
     # Recalcular totales
