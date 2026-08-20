@@ -1,20 +1,31 @@
+import { Box, CircularProgress } from "@mui/material";
+import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import MainLayout from "./layouts/MainLayout";
-import ClientsPage from "./pages/ClientsPage";
-import CompanyPage from "./pages/CompanyPage";
-import CreateCompanyPage from "./pages/CreateCompanyPage";
-import EmployeesPage from "./pages/EmployeesPage";
-import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
-import MachineConfigsPage from "./pages/MachineConfigsPage";
-import MaterialsPage from "./pages/MaterialsPage";
-import NestingPage from "./pages/NestingPage";
-import PiecesPage from "./pages/PiecesPage";
-import QuotationDetailPage from "./pages/QuotationDetailPage";
-import QuoteFromCadWizardPage from "./pages/QuoteFromCadWizardPage";
-import QuotationsPage from "./pages/QuotationsPage";
-import SelectCompanyPage from "./pages/SelectCompanyPage";
+
+const ClientsPage = lazy(() => import("./pages/ClientsPage"));
+const CompanyPage = lazy(() => import("./pages/CompanyPage"));
+const CreateCompanyPage = lazy(() => import("./pages/CreateCompanyPage"));
+const EmployeesPage = lazy(() => import("./pages/EmployeesPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const MachineConfigsPage = lazy(() => import("./pages/MachineConfigsPage"));
+const MaterialsPage = lazy(() => import("./pages/MaterialsPage"));
+const NestingPage = lazy(() => import("./pages/NestingPage"));
+const PiecesPage = lazy(() => import("./pages/PiecesPage"));
+const QuotationDetailPage = lazy(() => import("./pages/QuotationDetailPage"));
+const QuoteFromCadWizardPage = lazy(() => import("./pages/QuoteFromCadWizardPage"));
+const QuotationsPage = lazy(() => import("./pages/QuotationsPage"));
+const SelectCompanyPage = lazy(() => import("./pages/SelectCompanyPage"));
+
+function RouteFallback() {
+  return (
+    <Box display="flex" justifyContent="center" mt={6}>
+      <CircularProgress />
+    </Box>
+  );
+}
 
 function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
@@ -33,28 +44,30 @@ function RequireOwner({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route path="/select-company" element={<SelectCompanyPage />} />
-        <Route path="/companies/new" element={<CreateCompanyPage />} />
-        <Route element={<RequireCompany />}>
-          <Route element={<MainLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/pieces" element={<PiecesPage />} />
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/quotations" element={<QuotationsPage />} />
-            <Route path="/quotations/:id" element={<QuotationDetailPage />} />
-            <Route path="/materials" element={<MaterialsPage />} />
-            <Route path="/machine-configs" element={<MachineConfigsPage />} />
-            <Route path="/company" element={<CompanyPage />} />
-            <Route path="/employees" element={<RequireOwner><EmployeesPage /></RequireOwner>} />
-            <Route path="/nesting" element={<NestingPage />} />
-            <Route path="/quotes/new-from-cad" element={<QuoteFromCadWizardPage />} />
+    <Suspense fallback={<RouteFallback />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/select-company" element={<SelectCompanyPage />} />
+          <Route path="/companies/new" element={<CreateCompanyPage />} />
+          <Route element={<RequireCompany />}>
+            <Route element={<MainLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/pieces" element={<PiecesPage />} />
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+              <Route path="/materials" element={<MaterialsPage />} />
+              <Route path="/machine-configs" element={<MachineConfigsPage />} />
+              <Route path="/company" element={<CompanyPage />} />
+              <Route path="/employees" element={<RequireOwner><EmployeesPage /></RequireOwner>} />
+              <Route path="/nesting" element={<NestingPage />} />
+              <Route path="/quotes/new-from-cad" element={<QuoteFromCadWizardPage />} />
+            </Route>
           </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 
