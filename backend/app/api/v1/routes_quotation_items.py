@@ -8,9 +8,11 @@ from app.models.material import Material
 from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
+from app.models.stock_reservation import StockReservation
 from app.schemas.quotation_item import QuotationItemCreate, QuotationItemRead, QuotationItemUpdate
 from app.services.quotation_calculator import calculate_quotation_item
 from app.services.quotation_events import log_event
+from app.services.stock_reservations import release_reservation
 
 
 router = APIRouter(prefix="/quotation-items", tags=["quotation-items"])
@@ -131,6 +133,15 @@ def delete_quotation_item(
     piece = db.query(Piece).filter(Piece.id == item.piece_id).first()
     piece_label = piece.name if piece else f"pieza #{item.piece_id}"
     log_event(db, item.quotation_id, "item_removed", f"Pieza eliminada: {piece_label}", member.user_id)
+
+    active_reservation = (
+        db.query(StockReservation)
+        .filter(StockReservation.quotation_item_id == item.id, StockReservation.status == "ACTIVE")
+        .first()
+    )
+    if active_reservation:
+        release_reservation(db, active_reservation, member.user_id)
+
     db.delete(item)
     db.flush()
     # Recalcular totales

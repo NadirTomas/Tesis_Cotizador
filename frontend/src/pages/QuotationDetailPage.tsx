@@ -40,6 +40,7 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import StockGeometryView from "../components/StockGeometryView";
 import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
@@ -56,6 +57,7 @@ import {
   type QuotationEvent,
   type QuotationItem,
 } from "../services/quotations";
+import { confirmCut, getStockSheet, recommendStock, reserveStock, type StockRecommendation, type StockSheet } from "../services/stock";
 
 const EVENT_ICONS: Record<string, React.ElementType> = {
   created: AddCircleOutline,
@@ -108,7 +110,40 @@ const QuotationDetailPage = () => {
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
 
+  // Recomendación de stock (informativa mientras la cotización no está aceptada)
+  const [recommendations, setRecommendations] = useState<StockRecommendation[] | null>(null);
+  const [recommendLoading, setRecommendLoading] = useState(false);
+  const [recommendError, setRecommendError] = useState<string | null>(null);
+  const [locationView, setLocationView] = useState<StockRecommendation | null>(null);
+  const [locationStock, setLocationStock] = useState<StockSheet | null>(null);
+  const [showAlternatives, setShowAlternatives] = useState(false);
+
+  // Reserva de material por ítem (solo disponible con la cotización aceptada)
+  const [reservingItemId, setReservingItemId] = useState<number | null>(null);
+  const [itemReservations, setItemReservations] = useState<Record<number, { reservationId: number; stockCode: string; cut: boolean }>>({});
+  const [confirmingItemId, setConfirmingItemId] = useState<number | null>(null);
+
   useEffect(() => { loadAll(); }, [quotationId]);
+
+  useEffect(() => {
+    setRecommendations(null);
+    setRecommendError(null);
+    setShowAlternatives(false);
+    if (pieceId === "" || materialId === "") return;
+    const piece = pieces.find((p) => p.id === pieceId);
+    if (!piece || piece.length_cut_mm == null) return; // sin DXF, no hay geometría para recomendar
+
+    setRecommendLoading(true);
+    recommendStock(pieceId as number, materialId as number)
+      .then(setRecommendations)
+      .catch((e: Error) => setRecommendError(e.message))
+      .finally(() => setRecommendLoading(false));
+  }, [pieceId, materialId]);
+
+  useEffect(() => {
+    if (!locationView) { setLocationStock(null); return; }
+    getStockSheet(locationView.stock_sheet_id).then(setLocationStock).catch(() => setLocationStock(null));
+  }, [locationView]);
 
   async function loadAll() {
     try {
@@ -194,6 +229,46 @@ const QuotationDetailPage = () => {
       setAddError("Error al agregar ítem. Verificá que el material tenga configuración de máquina.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handleReserveForItem(item: QuotationItem) {
+    if (!quotation) return;
+    setReservingItemId(item.id);
+    try {
+      const options = await recommendStock(item.piece_id, item.material_id);
+      if (options.length === 0) throw new Error("No hay stock disponible para este ítem.");
+      const best = options[0];
+      const reservation = await reserveStock(best.stock_sheet_id, {
+        piece_id: item.piece_id,
+        material_id: item.material_id,
+        quotation_id: quotation.id,
+        quotation_item_id: item.id,
+      });
+      setItemReservations((prev) => ({ ...prev, [item.id]: { reservationId: reservation.id, stockCode: best.stock_code, cut: false } }));
+      setToast(`Material reservado: ${best.stock_code}.`);
+    } catch (e: any) {
+      setToast(e.message ?? "Error al reservar material.");
+    } finally {
+      setReservingItemId(null);
+    }
+  }
+
+  async function handleConfirmCutForItem(item: QuotationItem) {
+    const reservation = itemReservations[item.id];
+    if (!reservation) return;
+    setConfirmingItemId(item.id);
+    try {
+      const result = await confirmCut(reservation.reservationId);
+      setItemReservations((prev) => ({ ...prev, [item.id]: { ...prev[item.id], cut: true } }));
+      const remnantMsg = result.remnants.length > 0
+        ? ` Se generó ${result.remnants.length === 1 ? "el retazo" : "los retazos"}: ${result.remnants.map((r) => r.code).join(", ")}.`
+        : "";
+      setToast(`Corte confirmado sobre ${result.stock_code}.${remnantMsg}`);
+    } catch (e: any) {
+      setToast(e.message ?? "Error al confirmar el corte.");
+    } finally {
+      setConfirmingItemId(null);
     }
   }
 
@@ -292,6 +367,7 @@ const QuotationDetailPage = () => {
                   <TableCell align="right">Costo MO</TableCell>
                   <TableCell align="right">P. unitario</TableCell>
                   <TableCell align="right">Total</TableCell>
+                  {quotation.status === "accepted" && <TableCell>Material</TableCell>}
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -311,6 +387,41 @@ const QuotationDetailPage = () => {
                         {formatARS(item.total_price_ars)}
                       </span>
                     </TableCell>
+                    {quotation.status === "accepted" && (
+                      <TableCell>
+                        {(() => {
+                          const reservation = itemReservations[item.id];
+                          if (!reservation) {
+                            return (
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                disabled={reservingItemId === item.id}
+                                onClick={() => handleReserveForItem(item)}
+                              >
+                                {reservingItemId === item.id ? "Reservando..." : "Reservar material"}
+                              </Button>
+                            );
+                          }
+                          if (reservation.cut) {
+                            return <Chip label={`Cortado — ${reservation.stockCode}`} color="default" size="small" />;
+                          }
+                          return (
+                            <Box display="flex" alignItems="center" gap={1}>
+                              <Chip label={`Reservado — ${reservation.stockCode}`} color="success" size="small" />
+                              <Button
+                                size="small"
+                                variant="contained"
+                                disabled={confirmingItemId === item.id}
+                                onClick={() => handleConfirmCutForItem(item)}
+                              >
+                                {confirmingItemId === item.id ? "Confirmando..." : "Confirmar corte"}
+                              </Button>
+                            </Box>
+                          );
+                        })()}
+                      </TableCell>
+                    )}
                     <TableCell align="center" sx={{ py: 0 }}>
                       <Tooltip title="Eliminar ítem">
                         <IconButton size="small" color="error" onClick={() => setDeleteItemId(item.id)}>
@@ -432,7 +543,89 @@ const QuotationDetailPage = () => {
         {selectedPiece && selectedPiece.length_cut_mm == null && (
           <Alert severity="warning" sx={{ mt: 2 }}>Esta pieza no tiene DXF cargado. Los costos serán 0.</Alert>
         )}
+
+        {/* Recomendación de stock */}
+        {recommendLoading && (
+          <Box display="flex" alignItems="center" gap={1} mt={2}>
+            <CircularProgress size={16} />
+            <Typography sx={{ fontSize: "0.82rem", color: "text.secondary" }}>Buscando stock compatible...</Typography>
+          </Box>
+        )}
+        {recommendError && (
+          <Alert severity="info" sx={{ mt: 2 }}>{recommendError}</Alert>
+        )}
+        {recommendations && recommendations.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Typography sx={{ fontSize: "0.72rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "text.secondary" }}>
+                Material solicitado — Stock compatible: {recommendations.length}
+              </Typography>
+            </Box>
+            {(() => {
+              const top = recommendations[0];
+              return (
+                <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5}>
+                  <Box>
+                    <Chip label="RECOMENDADO" color="success" size="small" sx={{ mb: 0.5 }} />
+                    <Typography sx={{ fontWeight: 700, fontFamily: '"Barlow Condensed", sans-serif', fontSize: "1.1rem" }}>
+                      {top.stock_code}
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.8rem", color: "text.secondary" }}>
+                      Aprovechamiento estimado: {top.utilization_percent}%
+                    </Typography>
+                  </Box>
+                  <Box display="flex" gap={1}>
+                    <Button size="small" variant="outlined" onClick={() => setLocationView(top)}>Ver ubicación</Button>
+                    {recommendations.length > 1 && (
+                      <Button size="small" onClick={() => setShowAlternatives((v) => !v)}>
+                        {showAlternatives ? "Ocultar alternativas" : `Ver ${recommendations.length - 1} alternativa(s)`}
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              );
+            })()}
+            {showAlternatives && (
+              <Box mt={2} display="flex" flexDirection="column" gap={1}>
+                {recommendations.slice(1).map((rec) => (
+                  <Box key={rec.stock_sheet_id} display="flex" justifyContent="space-between" alignItems="center" sx={{ px: 1.5, py: 1, borderRadius: 1, bgcolor: "action.hover" }}>
+                    <Typography sx={{ fontSize: "0.85rem" }}>
+                      <span className="mono">{rec.stock_code}</span> — {rec.stock_type === "REMNANT" ? "Retazo" : "Chapa"} · {rec.utilization_percent}% aprovechamiento
+                    </Typography>
+                    <Button size="small" onClick={() => setLocationView(rec)}>Ver ubicación</Button>
+                  </Box>
+                ))}
+              </Box>
+            )}
+            <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mt: 1.5 }}>
+              Esto no reserva material todavía — la reserva se hace por ítem una vez que la cotización esté aceptada.
+            </Typography>
+          </Paper>
+        )}
       </Box>
+
+      {/* Ver ubicación de la recomendación */}
+      <Dialog open={!!locationView} onClose={() => setLocationView(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Ubicación en {locationView?.stock_code}</DialogTitle>
+        <DialogContent>
+          {locationView && !locationStock && (
+            <Box display="flex" justifyContent="center" py={4}><CircularProgress size={24} /></Box>
+          )}
+          {locationView && locationStock && (
+            <StockGeometryView
+              geometry={locationStock.geometry}
+              piece={{
+                x: locationView.x, y: locationView.y,
+                width_mm: locationView.piece_width_mm, height_mm: locationView.piece_height_mm,
+                rotation: locationView.rotation,
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLocationView(null)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Confirmar eliminar ítem */}
       <Dialog open={deleteItemId !== null} onClose={() => setDeleteItemId(null)}>

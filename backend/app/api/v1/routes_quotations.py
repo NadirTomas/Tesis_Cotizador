@@ -13,12 +13,14 @@ from app.models.client import Client
 from app.models.company_member import CompanyMember
 from app.models.quotation import Quotation
 from app.models.quotation_event import QuotationEvent
+from app.models.stock_reservation import StockReservation
 from app.models.user import User
 from app.schemas.quotation import QuotationCreate, QuotationRead
 from app.schemas.quotation_event import QuotationEventRead
 from app.services.pdf_generator import generate_quotation_pdf
 from app.services.company_guard import get_current_company
 from app.services.quotation_events import log_event
+from app.services.stock_reservations import release_reservation
 
 
 router = APIRouter(prefix="/quotations", tags=["quotations"])
@@ -27,7 +29,10 @@ logger = logging.getLogger(__name__)
 VALID_TRANSITIONS: dict[str, list[str]] = {
     "draft":     ["sent", "cancelled"],
     "sent":      ["accepted", "cancelled"],
-    "accepted":  [],
+    # "accepted" -> "cancelled": un cliente puede aceptar y después bajarse
+    # antes de que se corte el material. Necesario para que la reserva de
+    # stock pueda liberarse alguna vez (ver services/stock_reservations.py).
+    "accepted":  ["cancelled"],
     "cancelled": [],
 }
 
@@ -234,6 +239,14 @@ def update_status(
         f"{STATUS_LABELS.get(previous_status, previous_status)} → {STATUS_LABELS.get(status, status)}",
         member.user_id,
     )
+    if status == "cancelled":
+        active_reservations = (
+            db.query(StockReservation)
+            .filter(StockReservation.quotation_id == quotation.id, StockReservation.status == "ACTIVE")
+            .all()
+        )
+        for reservation in active_reservations:
+            release_reservation(db, reservation, member.user_id)
     db.commit()
     db.refresh(quotation)
     return quotation

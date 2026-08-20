@@ -4,6 +4,8 @@ import { apiFetch, getAuthHeaders } from "./apiClient";
 export interface Material {
   id: number;
   name: string;
+  material_type: string | null;
+  alloy: string | null;
   thickness_mm: number;
   sheet_width_mm: number;
   sheet_height_mm: number;
@@ -14,6 +16,8 @@ export interface Material {
 
 export interface MaterialCreate {
   name: string;
+  material_type: string;
+  alloy?: string;
   thickness_mm: number;
   sheet_width_mm: number;
   sheet_height_mm: number;
@@ -22,6 +26,8 @@ export interface MaterialCreate {
 
 export interface MaterialUpdate {
   name?: string;
+  material_type?: string;
+  alloy?: string;
   thickness_mm?: number;
   sheet_width_mm?: number;
   sheet_height_mm?: number;

@@ -19,6 +19,7 @@ import PrecisionManufacturingOutlinedIcon from "@mui/icons-material/PrecisionMan
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -41,6 +42,7 @@ const navItems = [
   },
   { label: "Clientes", path: "/clients", icon: <PeopleOutlinedIcon fontSize="small" /> },
   { label: "Nesting", path: "/nesting", icon: <GridViewOutlinedIcon fontSize="small" /> },
+  { label: "Stock", path: "/stock", icon: <Inventory2OutlinedIcon fontSize="small" /> },
   { label: "Materiales", path: "/materials", icon: <CategoryOutlinedIcon fontSize="small" /> },
   { label: "Máquina", path: "/machine-configs", icon: <SettingsOutlinedIcon fontSize="small" /> },
   { label: "Empresa", path: "/company", icon: <BusinessOutlinedIcon fontSize="small" /> },

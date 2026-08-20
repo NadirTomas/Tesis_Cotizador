@@ -26,10 +26,12 @@ class RecommendationResult:
 
 def recommend_stock_for_piece(
     db: Session, company_id: int, piece_polygon: Polygon, material_id: int
-) -> RecommendationResult | None:
+) -> list[RecommendationResult]:
     """
-    Busca, dentro del stock AVAILABLE de la empresa activa, la mejor chapa o
-    retazo compatible (mismo tipo/calidad/espesor) que contenga la pieza.
+    Busca, dentro del stock AVAILABLE de la empresa activa, todas las chapas
+    o retazos compatibles (mismo tipo/calidad/espesor) que contienen la
+    pieza, puntuados y ordenados de mejor a peor — el primero es "la
+    recomendación", el resto son las alternativas.
 
     Estrategia (ver plan para el detalle completo):
     1. filtrar stock compatible por company_id + material_type/alloy/
@@ -38,7 +40,7 @@ def recommend_stock_for_piece(
        restante dentro de cada grupo (best-fit);
     3. para cada candidato, intentar ubicar la pieza (find_placement);
     4. descartar los que no entran;
-    5. puntuar los que sí entran y devolver el de mejor score.
+    5. puntuar los que sí entran y devolver todos, ordenados por score.
 
     No modifica ningún StockSheet — es puro análisis/recomendación.
     """
@@ -82,7 +84,7 @@ def recommend_stock_for_piece(
     candidates.sort(key=lambda s: (0 if s.stock_type == "REMNANT" else 1, s.remaining_area_mm2))
 
     piece_area = piece_polygon.area
-    best: RecommendationResult | None = None
+    results: list[RecommendationResult] = []
 
     for stock in candidates:
         stock_polygon = shape(stock.geometry)
@@ -103,8 +105,8 @@ def recommend_stock_for_piece(
         else:
             reason += "."
 
-        if best is None or score > best.score:
-            best = RecommendationResult(
+        results.append(
+            RecommendationResult(
                 stock_sheet=stock,
                 rotation=placement.rotation,
                 x=placement.x,
@@ -114,5 +116,7 @@ def recommend_stock_for_piece(
                 score=round(score, 4),
                 reason=reason,
             )
+        )
 
-    return best
+    results.sort(key=lambda r: r.score, reverse=True)
+    return results

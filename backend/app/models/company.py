@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Integer, LargeBinary, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, LargeBinary, String, func
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -17,6 +17,12 @@ class Company(Base):
     logo_data = Column(LargeBinary, nullable=True)
     logo_filename = Column(String, nullable=True)  # Para guardar extensión
     is_active = Column(Boolean, nullable=False, default=True)
+    # Umbral configurable para decidir si un remanente de corte vale la pena
+    # conservar como retazo. Default inicial 2500mm² (5x5cm) — editable por
+    # empresa vía PUT /companies/{id}, no un valor fijo dentro del algoritmo.
+    minimum_remnant_area_mm2 = Column(Float, nullable=False, default=2500.0)
+    minimum_remnant_width_mm = Column(Float, nullable=True)
+    minimum_remnant_height_mm = Column(Float, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False

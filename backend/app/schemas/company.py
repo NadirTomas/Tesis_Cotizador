@@ -20,6 +20,9 @@ class CompanyUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    minimum_remnant_area_mm2: Optional[float] = None
+    minimum_remnant_width_mm: Optional[float] = None
+    minimum_remnant_height_mm: Optional[float] = None
 
 
 class CompanyRead(BaseModel):
@@ -32,6 +35,9 @@ class CompanyRead(BaseModel):
     email: Optional[str] = None
     is_active: bool
     has_logo: bool = False
+    minimum_remnant_area_mm2: float
+    minimum_remnant_width_mm: Optional[float] = None
+    minimum_remnant_height_mm: Optional[float] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

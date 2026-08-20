@@ -226,7 +226,7 @@ def test_prioritizes_remnant_over_full_sheet():
         "/stock/recommendations", json={"piece_id": piece_id, "material_id": material_id}, headers=headers
     )
     assert res.status_code == 200
-    data = res.json()
+    data = res.json()[0]
     assert data["stock_type"] == "REMNANT"
     assert data["stock_sheet_id"] == remnant["id"]
 
@@ -287,4 +287,5 @@ def test_selects_the_best_scoring_candidate_among_alternatives():
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["stock_sheet_id"] == well_fitted["id"]  # mejor aprovechamiento gana, no el más grande
+    assert len(data) == 2  # las dos alternativas se devuelven, ordenadas
+    assert data[0]["stock_sheet_id"] == well_fitted["id"]  # mejor aprovechamiento gana, no el más grande

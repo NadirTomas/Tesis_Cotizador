@@ -35,6 +35,8 @@ import {
 
 const EMPTY_FORM: MaterialCreate = {
   name: "",
+  material_type: "",
+  alloy: "",
   thickness_mm: 0,
   sheet_width_mm: 0,
   sheet_height_mm: 0,
@@ -86,6 +88,8 @@ const MaterialsPage = () => {
     setEditingId(m.id);
     setForm({
       name: m.name,
+      material_type: m.material_type ?? "",
+      alloy: m.alloy ?? "",
       thickness_mm: m.thickness_mm,
       sheet_width_mm: m.sheet_width_mm,
       sheet_height_mm: m.sheet_height_mm,
@@ -94,15 +98,17 @@ const MaterialsPage = () => {
     setDialogOpen(true);
   }
 
+  const TEXT_FIELDS = new Set<keyof MaterialCreate>(["name", "material_type", "alloy"]);
+
   function handleField(field: keyof MaterialCreate, value: string) {
     setForm((prev) => ({
       ...prev,
-      [field]: field === "name" ? value : parseFloat(value) || 0,
+      [field]: TEXT_FIELDS.has(field) ? value : parseFloat(value) || 0,
     }));
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.material_type.trim()) return;
     setSaving(true);
     try {
       if (editingId !== null) {
@@ -189,6 +195,7 @@ const MaterialsPage = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Nombre</TableCell>
+                <TableCell>Tipo / calidad</TableCell>
                 <TableCell align="right">Espesor (mm)</TableCell>
                 <TableCell align="right">Chapa (mm)</TableCell>
                 <TableCell align="right">Costo chapa (ARS)</TableCell>
@@ -199,6 +206,9 @@ const MaterialsPage = () => {
               {paginatedItems.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell>{m.name}</TableCell>
+                  <TableCell sx={{ color: "text.secondary" }}>
+                    {m.material_type ?? "—"}{m.alloy ? ` · ${m.alloy}` : ""}
+                  </TableCell>
                   <TableCell align="right"><span className="mono">{m.thickness_mm}</span></TableCell>
                   <TableCell align="right">
                     <span className="mono">{m.sheet_width_mm} × {m.sheet_height_mm}</span>
@@ -239,6 +249,20 @@ const MaterialsPage = () => {
         <DialogTitle>{editingId ? "Editar material" : "Nuevo material"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField label="Nombre" value={form.name} onChange={(e) => handleField("name", e.target.value)} fullWidth required />
+          <TextField
+            label="Tipo de material"
+            value={form.material_type}
+            onChange={(e) => handleField("material_type", e.target.value)}
+            fullWidth required
+            placeholder="Ej: Acero al carbono, Acero inoxidable, Aluminio"
+          />
+          <TextField
+            label="Calidad / aleación (opcional)"
+            value={form.alloy}
+            onChange={(e) => handleField("alloy", e.target.value)}
+            fullWidth
+            placeholder="Ej: SAE 1010, AISI 304"
+          />
           <TextField label="Espesor (mm)" type="number" value={form.thickness_mm} onChange={(e) => handleField("thickness_mm", e.target.value)} fullWidth required />
           <TextField label="Ancho de chapa (mm)" type="number" value={form.sheet_width_mm} onChange={(e) => handleField("sheet_width_mm", e.target.value)} fullWidth required />
           <TextField label="Alto de chapa (mm)" type="number" value={form.sheet_height_mm} onChange={(e) => handleField("sheet_height_mm", e.target.value)} fullWidth required />
@@ -246,7 +270,7 @@ const MaterialsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim()}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim() || !form.material_type.trim()}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

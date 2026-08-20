@@ -14,6 +14,8 @@ class StockRecommendation(BaseModel):
     x: float
     y: float
     piece_area_mm2: float
+    piece_width_mm: float
+    piece_height_mm: float
     stock_remaining_area_mm2: float
     utilization_percent: float
     score: float

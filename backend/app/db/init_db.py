@@ -9,6 +9,8 @@ from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.quotation_event import QuotationEvent
 from app.models.quotation_item import QuotationItem
+from app.models.stock_movement import StockMovement
+from app.models.stock_reservation import StockReservation
 from app.models.stock_sheet import StockSheet
 from app.models.user import User
 

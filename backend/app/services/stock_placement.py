@@ -15,6 +15,25 @@ class Placement:
     y: float
 
 
+def occupied_geometry_at(
+    piece_polygon: Polygon, rotation: int, x: float, y: float, kerf_mm: float = 0.0, minimum_spacing_mm: float = 0.0
+) -> Polygon:
+    """
+    Reconstruye el polígono que la pieza (con su margen de kerf/separación)
+    ocupa realmente en una posición/rotación ya decidida. Misma transformación
+    que usa `find_placement` internamente — se comparte para que la
+    colocación verificada al reservar y la resta geométrica al confirmar un
+    corte usen exactamente la misma geometría, nunca dos cálculos que puedan
+    divergir.
+    """
+    rotated = affinity.rotate(piece_polygon, rotation, origin="centroid")
+    buffer_d = (kerf_mm + minimum_spacing_mm) / 2
+    occupied = rotated.buffer(buffer_d) if buffer_d > 0 else rotated
+    rminx, rminy, _, _ = rotated.bounds
+    occupied_at_piece_origin = affinity.translate(occupied, -rminx, -rminy)
+    return affinity.translate(occupied_at_piece_origin, x, y)
+
+
 def find_placement(
     piece_polygon: Polygon,
     stock_polygon: Polygon,
@@ -70,7 +89,8 @@ def find_placement(
                     break
                 candidate = affinity.translate(occupied_at_piece_origin, x, y)
                 if stock_polygon.contains(candidate):
-                    return Placement(rotation=angle, x=round(x, 2), y=round(y, 2))
+                    rx, ry = round(x, 2), round(y, 2)
+                    return Placement(rotation=angle, x=rx, y=ry)
                 y += step
             if candidates > MAX_CANDIDATES_PER_ANGLE:
                 break

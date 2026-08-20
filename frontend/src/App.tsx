@@ -18,6 +18,8 @@ const QuotationDetailPage = lazy(() => import("./pages/QuotationDetailPage"));
 const QuoteFromCadWizardPage = lazy(() => import("./pages/QuoteFromCadWizardPage"));
 const QuotationsPage = lazy(() => import("./pages/QuotationsPage"));
 const SelectCompanyPage = lazy(() => import("./pages/SelectCompanyPage"));
+const StockPage = lazy(() => import("./pages/StockPage"));
+const StockDetailPage = lazy(() => import("./pages/StockDetailPage"));
 
 function RouteFallback() {
   return (
@@ -62,6 +64,8 @@ function App() {
               <Route path="/company" element={<CompanyPage />} />
               <Route path="/employees" element={<RequireOwner><EmployeesPage /></RequireOwner>} />
               <Route path="/nesting" element={<NestingPage />} />
+              <Route path="/stock" element={<StockPage />} />
+              <Route path="/stock/:id" element={<StockDetailPage />} />
               <Route path="/quotes/new-from-cad" element={<QuoteFromCadWizardPage />} />
             </Route>
           </Route>
