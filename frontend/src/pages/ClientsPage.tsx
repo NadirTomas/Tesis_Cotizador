@@ -185,7 +185,7 @@ const ClientsPage = () => {
               </InputAdornment>
             ),
           }}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, minWidth: 280 }}
         />
       )}
 

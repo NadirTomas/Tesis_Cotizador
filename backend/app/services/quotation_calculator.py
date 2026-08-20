@@ -39,13 +39,16 @@ def calculate_quotation_item(db: Session, quotation_item: QuotationItem, company
             MachineConfig.company_id == company_id,
             MachineConfig.active.is_(True),
         )
+        .order_by(MachineConfig.id)
         .first()
     )
     if not machine_config:
         raise ValueError("MachineConfig activo no encontrado para el material")
 
-    quantity = quotation_item.quantity or 0
-    margin_percent = quotation_item.margin_percent or 0.0
+    # Nota: `or 0` trataría -5 como válido (solo 0 es falsy). quantity/margin_percent
+    # ya vienen validados como positivos por el schema; esto es solo el fallback None.
+    quantity = quotation_item.quantity if quotation_item.quantity is not None else 0
+    margin_percent = quotation_item.margin_percent if quotation_item.margin_percent is not None else 0.0
 
     cost_material_total = 0.0
     if piece.area_mm2 and piece.area_mm2 > 0:

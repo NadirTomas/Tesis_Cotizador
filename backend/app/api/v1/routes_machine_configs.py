@@ -5,27 +5,26 @@ from app.db.session import get_db
 from app.models.company_member import CompanyMember
 from app.services.company_guard import get_current_company, require_owner
 from app.models.machine_config import MachineConfig
-from app.models.material import Material
 from app.schemas.machine_config import (
     MachineConfigCreate,
     MachineConfigRead,
     MachineConfigUpdate,
 )
+from app.services.lookups import get_active_material
 
 
 router = APIRouter(prefix="/machine-configs", tags=["machine-configs"])
 
 
-def _get_active_material(db: Session, material_id: int, company_id: int) -> Material | None:
-    return (
-        db.query(Material)
-        .filter(
-            Material.id == material_id,
-            Material.company_id == company_id,
-            Material.active.is_(True),
-        )
-        .first()
+def _has_active_config(db: Session, material_id: int, company_id: int, exclude_id: int | None = None) -> bool:
+    query = db.query(MachineConfig).filter(
+        MachineConfig.material_id == material_id,
+        MachineConfig.company_id == company_id,
+        MachineConfig.active.is_(True),
     )
+    if exclude_id is not None:
+        query = query.filter(MachineConfig.id != exclude_id)
+    return query.first() is not None
 
 
 @router.post("/", response_model=MachineConfigRead)
@@ -34,9 +33,14 @@ def create_machine_config(
     db: Session = Depends(get_db),
     member: CompanyMember = Depends(require_owner),
 ):
-    material = _get_active_material(db, payload.material_id, member.company_id)
+    material = get_active_material(db, payload.material_id, member.company_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
+    if _has_active_config(db, payload.material_id, member.company_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una configuración de máquina activa para este material",
+        )
     config = MachineConfig(**payload.dict())
     config.company_id = member.company_id
     config.created_by_id = member.user_id
@@ -93,6 +97,12 @@ def update_machine_config(
     if not config:
         raise HTTPException(status_code=404, detail="Machine config not found")
     update_data = payload.dict(exclude_unset=True)
+    if update_data.get("active") is True and not config.active:
+        if _has_active_config(db, config.material_id, member.company_id, exclude_id=config.id):
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe una configuración de máquina activa para este material",
+            )
     for key, value in update_data.items():
         setattr(config, key, value)
     db.commit()

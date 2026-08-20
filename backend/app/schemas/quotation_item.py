@@ -1,19 +1,24 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class QuotationItemBase(BaseModel):
     quotation_id: int
     piece_id: int
     material_id: int
-    quantity: int
-    margin_percent: float = 0.0
+    quantity: int = Field(gt=0)
+    margin_percent: float = Field(default=0.0, ge=0)
 
 
 class QuotationItemCreate(QuotationItemBase):
     pass
+
+
+class QuotationItemUpdate(BaseModel):
+    quantity: Optional[int] = Field(default=None, gt=0)
+    margin_percent: Optional[float] = Field(default=None, ge=0)
 
 
 class QuotationItemRead(QuotationItemBase):
@@ -24,6 +29,7 @@ class QuotationItemRead(QuotationItemBase):
     unit_price_ars: float
     total_price_ars: float
     created_at: datetime
+    updated_at: datetime
     created_by_id: Optional[int] = None
 
     model_config = {"from_attributes": True}

@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.company_member import CompanyMember
-from app.models.material import Material
 from app.models.piece import Piece
 from app.services.dxf_analysis import analyze_dxf
 from app.services.dxf_preview import generate_dxf_preview
+from app.services.lookups import get_active_material
 from app.schemas.piece import PieceCreate, PieceRead, PieceUpdate
 from app.core.config import get_settings
 
@@ -27,18 +27,6 @@ limiter = Limiter(key_func=get_remote_address)
 settings = get_settings()
 
 
-def _get_active_material(db: Session, material_id: int, company_id: int) -> Material | None:
-    return (
-        db.query(Material)
-        .filter(
-            Material.id == material_id,
-            Material.company_id == company_id,
-            Material.active.is_(True),
-        )
-        .first()
-    )
-
-
 @router.post("/", response_model=PieceRead)
 def create_piece(
     payload: PieceCreate,
@@ -46,7 +34,7 @@ def create_piece(
     member: CompanyMember = Depends(get_current_company),
 ):
     if payload.material_id is not None:
-        material = _get_active_material(db, payload.material_id, member.company_id)
+        material = get_active_material(db, payload.material_id, member.company_id)
         if not material:
             raise HTTPException(status_code=404, detail="Material not found")
     piece = Piece(**payload.dict())
@@ -105,7 +93,7 @@ def update_piece(
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
     if payload.material_id is not None:
-        material = _get_active_material(db, payload.material_id, member.company_id)
+        material = get_active_material(db, payload.material_id, member.company_id)
         if not material:
             raise HTTPException(status_code=404, detail="Material not found")
     update_data = payload.dict(exclude_unset=True)
@@ -175,8 +163,9 @@ def upload_dxf(
             tmp.write(dxf_content)
             tmp_path = tmp.name
         length_cut_mm, area_mm2 = analyze_dxf(tmp_path)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("DXF analysis failed", extra={"piece_id": piece_id, "filename": file.filename, "user": member.user_id})
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo DXF. Verificá que sea un DXF válido.")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 

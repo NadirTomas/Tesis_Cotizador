@@ -34,7 +34,9 @@ def _require_matching_company(company_id: int, member: CompanyMember) -> None:
 
 
 @router.post("/", response_model=CompanyRead, status_code=201)
+@limiter.limit("10/minute")
 def create_company(
+    request: Request,
     payload: CompanyCreate,
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user),

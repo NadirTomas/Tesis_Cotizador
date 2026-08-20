@@ -84,30 +84,37 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
   }
 
   return (
-    <Box display="flex" flexDirection="column" gap={2} maxWidth={480}>
-      {error && <Alert severity="error">{error}</Alert>}
-      <FormControl fullWidth required>
-        <InputLabel>Cliente</InputLabel>
-        <Select label="Cliente" value={clientId} onChange={(e) => setClientId(e.target.value as number)}>
-          {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
-        </Select>
-      </FormControl>
-      <TextField label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} fullWidth required InputLabelProps={{ shrink: true }} />
-      <TextField label="Fecha de vencimiento (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
-      <FormControl fullWidth>
-        <InputLabel>Moneda</InputLabel>
-        <Select label="Moneda" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-          <MenuItem value="ARS">ARS</MenuItem>
-          <MenuItem value="USD">USD</MenuItem>
-        </Select>
-      </FormControl>
-      <TextField label="Tipo de cambio (opcional)" type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} fullWidth placeholder="Ej: 1050" />
-      <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline rows={2} />
-      <Box display="flex" justifyContent="flex-end" mt={1}>
-        <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !issueDate}>
-          {saving ? "Creando..." : "Crear cotización →"}
-        </Button>
-      </Box>
+    <Box display="flex" justifyContent="center">
+      <Paper variant="outlined" sx={{ p: 3, maxWidth: 480, width: "100%" }}>
+        <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "1.1rem", letterSpacing: "0.03em", textTransform: "uppercase", mb: 2 }}>
+          Datos de la cotización
+        </Typography>
+        <Box display="flex" flexDirection="column" gap={2}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <FormControl fullWidth required>
+            <InputLabel>Cliente</InputLabel>
+            <Select label="Cliente" value={clientId} onChange={(e) => setClientId(e.target.value as number)}>
+              {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} fullWidth required InputLabelProps={{ shrink: true }} />
+          <TextField label="Fecha de vencimiento (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
+          <FormControl fullWidth>
+            <InputLabel>Moneda</InputLabel>
+            <Select label="Moneda" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <MenuItem value="ARS">ARS</MenuItem>
+              <MenuItem value="USD">USD</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField label="Tipo de cambio (opcional)" type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} fullWidth placeholder="Ej: 1050" />
+          <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline rows={2} />
+          <Box display="flex" justifyContent="flex-end" mt={1}>
+            <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !issueDate}>
+              {saving ? "Creando..." : "Crear cotización →"}
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
     </Box>
   );
 }

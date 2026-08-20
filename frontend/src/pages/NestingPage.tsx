@@ -22,10 +22,18 @@ import { calculateNesting, type NestingResult } from "../services/nesting";
 
 const ACCENT = "#FF6B00";
 const SHEET_COLOR = "#1A1C24";
+const WASTE_COLOR = "#22242E";
 const PIECE_FILL = "rgba(255, 107, 0, 0.18)";
 const PIECE_STROKE = "#FF6B00";
 const CANVAS_MAX_W = 720;
 const CANVAS_MAX_H = 460;
+const DENSE_THRESHOLD = 120;
+
+function niceStep(total: number) {
+  const target = total / 6;
+  const steps = [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000];
+  return steps.reduce((best, s) => (Math.abs(s - target) < Math.abs(best - target) ? s : best), steps[0]);
+}
 
 function NestingSVG({ result }: { result: NestingResult }) {
   const { sheet_width_mm, sheet_height_mm, piece_width_mm, piece_height_mm, positions } = result;
@@ -39,73 +47,130 @@ function NestingSVG({ result }: { result: NestingResult }) {
 
   const [hovered, setHovered] = useState<number | null>(null);
 
+  const isDense = positions.length > DENSE_THRESHOLD;
+
+  const usedMaxX = positions.length > 0 ? Math.max(...positions.map((p) => p.x + piece_width_mm)) : 0;
+  const usedMaxY = positions.length > 0 ? Math.max(...positions.map((p) => p.y + piece_height_mm)) : 0;
+  const usedW = Math.min(usedMaxX * scale, svgW);
+  const usedH = Math.min(usedMaxY * scale, svgH);
+
+  const stepX = niceStep(sheet_width_mm);
+  const stepY = niceStep(sheet_height_mm);
+  const ticksX: number[] = [];
+  for (let v = 0; v <= sheet_width_mm + 0.01; v += stepX) ticksX.push(v);
+  const ticksY: number[] = [];
+  for (let v = 0; v <= sheet_height_mm + 0.01; v += stepY) ticksY.push(v);
+
   return (
     <Box sx={{ overflowX: "auto" }}>
+      <Box display="flex" alignItems="center" gap={2} mb={1}>
+        <Box display="flex" alignItems="center" gap={0.75}>
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: PIECE_FILL, border: `1px solid ${PIECE_STROKE}` }} />
+          <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>Aprovechado</Typography>
+        </Box>
+        <Box display="flex" alignItems="center" gap={0.75}>
+          <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: WASTE_COLOR, backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 1px, transparent 1px, transparent 5px)" }} />
+          <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>Desperdicio ({(100 - result.utilization_pct).toFixed(1)}%)</Typography>
+        </Box>
+      </Box>
       <svg
-        width={svgW}
-        height={svgH}
-        style={{ display: "block", borderRadius: 6, background: SHEET_COLOR }}
+        width={svgW + 34}
+        height={svgH + 26}
+        style={{ display: "block" }}
       >
-        {/* Borde de la chapa */}
-        <rect
-          x={1} y={1}
-          width={svgW - 2} height={svgH - 2}
-          fill="none"
-          stroke="#3D4050"
-          strokeWidth={1}
-          rx={2}
-        />
+        <defs>
+          <pattern id="wasteHatch" width={6} height={6} patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+            <rect width={6} height={6} fill={WASTE_COLOR} />
+            <line x1={0} y1={0} x2={0} y2={6} stroke="rgba(255,255,255,0.07)" strokeWidth={1.5} />
+          </pattern>
+        </defs>
 
-        {/* Dimensiones */}
-        <text x={svgW / 2} y={svgH - 6} textAnchor="middle" fill="#555" fontSize={10}>
-          {sheet_width_mm} mm
-        </text>
-        <text
-          x={8} y={svgH / 2}
-          textAnchor="middle"
-          fill="#555"
-          fontSize={10}
-          transform={`rotate(-90, 8, ${svgH / 2})`}
-        >
-          {sheet_height_mm} mm
-        </text>
+        <g transform="translate(28, 4)">
+          {/* Chapa completa = desperdicio de fondo */}
+          <rect x={0} y={0} width={svgW} height={svgH} fill="url(#wasteHatch)" rx={2} />
+          {/* Área efectivamente ocupada por el layout de piezas */}
+          <rect x={0} y={0} width={usedW} height={usedH} fill={SHEET_COLOR} rx={2} />
 
-        {/* Piezas */}
-        {positions.map((pos, i) => {
-          const px = pos.x * scale;
-          const py = pos.y * scale;
-          const pw = piece_width_mm * scale;
-          const ph = piece_height_mm * scale;
-          const isHov = hovered === i;
-          return (
-            <g key={i}>
-              <rect
-                x={px} y={py}
-                width={pw} height={ph}
-                fill={isHov ? "rgba(255,107,0,0.35)" : PIECE_FILL}
-                stroke={PIECE_STROKE}
-                strokeWidth={isHov ? 1.5 : 0.8}
-                rx={1}
-                style={{ cursor: "pointer", transition: "fill 0.1s" }}
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-              />
-              {/* Número de pieza si hay espacio */}
-              {pw > 18 && ph > 10 && (
-                <text
-                  x={px + pw / 2}
-                  y={py + ph / 2 + 3}
-                  textAnchor="middle"
-                  fill={isHov ? "#fff" : "rgba(255,107,0,0.7)"}
-                  fontSize={Math.min(pw * 0.35, ph * 0.55, 9)}
-                  style={{ pointerEvents: "none", userSelect: "none" }}
-                >
-                  {i + 1}
-                </text>
-              )}
+          {/* Borde de la chapa */}
+          <rect
+            x={0.5} y={0.5}
+            width={svgW - 1} height={svgH - 1}
+            fill="none"
+            stroke="#3D4050"
+            strokeWidth={1}
+            rx={2}
+          />
+
+          {/* Marcas de escala — eje X */}
+          {ticksX.map((v) => (
+            <g key={`tx-${v}`}>
+              <line x1={v * scale} y1={svgH} x2={v * scale} y2={svgH + 4} stroke="#555" strokeWidth={1} />
+              <text x={v * scale} y={svgH + 15} textAnchor="middle" fill="#666" fontSize={8.5}>
+                {v}
+              </text>
             </g>
-          );
-        })}
+          ))}
+          <text x={svgW / 2} y={svgH + 26} textAnchor="middle" fill="#888" fontSize={9.5}>
+            {sheet_width_mm} mm
+          </text>
+
+          {/* Marcas de escala — eje Y */}
+          {ticksY.map((v) => (
+            <g key={`ty-${v}`}>
+              <line x1={-4} y1={v * scale} x2={0} y2={v * scale} stroke="#555" strokeWidth={1} />
+              <text x={-7} y={v * scale + 3} textAnchor="end" fill="#666" fontSize={8.5}>
+                {v}
+              </text>
+            </g>
+          ))}
+          <text
+            x={-24} y={svgH / 2}
+            textAnchor="middle"
+            fill="#888"
+            fontSize={9.5}
+            transform={`rotate(-90, -24, ${svgH / 2})`}
+          >
+            {sheet_height_mm} mm
+          </text>
+
+          {/* Piezas */}
+          {positions.map((pos, i) => {
+            const px = pos.x * scale;
+            const py = pos.y * scale;
+            const pw = piece_width_mm * scale;
+            const ph = piece_height_mm * scale;
+            const isHov = hovered === i;
+            return (
+              <g key={i}>
+                <rect
+                  x={px} y={py}
+                  width={pw} height={ph}
+                  fill={isHov ? "rgba(255,107,0,0.35)" : PIECE_FILL}
+                  stroke={PIECE_STROKE}
+                  strokeWidth={isHov ? 1.5 : isDense ? 0.4 : 0.8}
+                  strokeOpacity={isDense && !isHov ? 0.6 : 1}
+                  rx={1}
+                  style={{ cursor: "pointer", transition: "fill 0.1s" }}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                />
+                {/* Número de pieza si hay espacio y no está saturado de piezas */}
+                {!isDense && pw > 18 && ph > 10 && (
+                  <text
+                    x={px + pw / 2}
+                    y={py + ph / 2 + 3}
+                    textAnchor="middle"
+                    fill={isHov ? "#fff" : "rgba(255,107,0,0.7)"}
+                    fontSize={Math.min(pw * 0.35, ph * 0.55, 9)}
+                    style={{ pointerEvents: "none", userSelect: "none" }}
+                  >
+                    {i + 1}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
       </svg>
     </Box>
   );

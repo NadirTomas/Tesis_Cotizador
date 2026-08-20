@@ -1,14 +1,14 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.models.company_member import CompanyRole
 
 
 class CompanyMemberCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     role: CompanyRole = CompanyRole.EMPLOYEE
 
 

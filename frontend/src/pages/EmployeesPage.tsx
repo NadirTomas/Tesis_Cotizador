@@ -46,6 +46,7 @@ const EmployeesPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CompanyMemberCreate>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<CompanyMember | null>(null);
 
   useEffect(() => { load(); }, [companyId]);
 
@@ -83,9 +84,25 @@ const EmployeesPage = () => {
 
   async function handleToggleActive(m: CompanyMember) {
     if (!companyId) return;
+    if (m.is_active) {
+      setDeactivateTarget(m);
+      return;
+    }
     try {
-      await updateMember(companyId, m.id, { is_active: !m.is_active });
-      setToast(m.is_active ? "Empleado desactivado." : "Empleado reactivado.");
+      await updateMember(companyId, m.id, { is_active: true });
+      setToast("Empleado reactivado.");
+      await load();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Error al actualizar el empleado.");
+    }
+  }
+
+  async function confirmDeactivate() {
+    if (!companyId || !deactivateTarget) return;
+    try {
+      await updateMember(companyId, deactivateTarget.id, { is_active: false });
+      setToast("Empleado desactivado.");
+      setDeactivateTarget(null);
       await load();
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Error al actualizar el empleado.");
@@ -191,6 +208,19 @@ const EmployeesPage = () => {
           <Button variant="contained" onClick={handleSave} disabled={saving || !form.email.trim() || !form.password.trim()}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)}>
+        <DialogTitle>Desactivar empleado</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Confirmás que querés desactivar a <b>{deactivateTarget?.email}</b>? Pierde acceso a la empresa hasta que lo reactives.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeactivateTarget(null)}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={confirmDeactivate}>Desactivar</Button>
         </DialogActions>
       </Dialog>
 

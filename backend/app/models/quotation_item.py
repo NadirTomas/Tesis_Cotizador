@@ -20,6 +20,7 @@ class QuotationItem(Base):
     unit_price_ars = Column(Float, nullable=False, default=0.0)
     total_price_ars = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     quotation = relationship("Quotation", overlaps="items")

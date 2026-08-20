@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
@@ -23,7 +23,7 @@ settings = get_settings()
 class AdminCreateCompanyRequest(BaseModel):
     company_name: str
     owner_email: EmailStr
-    owner_password: str
+    owner_password: str = Field(min_length=8)
 
 
 class AdminCreateCompanyResponse(BaseModel):

@@ -1,15 +1,15 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class MachineConfigBase(BaseModel):
     material_id: int
-    cut_speed_mm_min: float
-    machine_cost_per_hour_ars: float
-    setup_time_min: float
-    labor_percent: float = 30.0
+    cut_speed_mm_min: float = Field(gt=0)
+    machine_cost_per_hour_ars: float = Field(gt=0)
+    setup_time_min: float = Field(ge=0)
+    labor_percent: float = Field(default=30.0, ge=0)
 
 
 class MachineConfigCreate(MachineConfigBase):
@@ -17,10 +17,10 @@ class MachineConfigCreate(MachineConfigBase):
 
 
 class MachineConfigUpdate(BaseModel):
-    cut_speed_mm_min: Optional[float] = None
-    machine_cost_per_hour_ars: Optional[float] = None
-    setup_time_min: Optional[float] = None
-    labor_percent: Optional[float] = None
+    cut_speed_mm_min: Optional[float] = Field(default=None, gt=0)
+    machine_cost_per_hour_ars: Optional[float] = Field(default=None, gt=0)
+    setup_time_min: Optional[float] = Field(default=None, ge=0)
+    labor_percent: Optional[float] = Field(default=None, ge=0)
     active: Optional[bool] = None
 
 

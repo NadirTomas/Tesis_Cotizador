@@ -1,9 +1,11 @@
+import logging
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -16,6 +18,7 @@ from app.services.company_guard import get_current_company
 
 
 router = APIRouter(prefix="/quotations", tags=["quotations"])
+logger = logging.getLogger(__name__)
 
 VALID_TRANSITIONS: dict[str, list[str]] = {
     "draft":     ["sent", "cancelled"],
@@ -93,25 +96,37 @@ def get_stats(
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_ahead = now + timedelta(days=7)
 
-    all_q = db.query(Quotation).filter(Quotation.company_id == member.company_id).all()
-    this_month = [q for q in all_q if q.issue_date >= month_start]
-    expiring = [
-        q for q in all_q
-        if q.status in ("draft", "sent") and q.due_date and now <= q.due_date <= week_ahead
-    ]
+    base = db.query(Quotation).filter(Quotation.company_id == member.company_id)
 
-    by_status: dict[str, int] = {}
-    for q in all_q:
-        by_status[q.status] = by_status.get(q.status, 0) + 1
+    total = base.count()
 
-    recent = sorted(all_q, key=lambda q: q.issue_date, reverse=True)[:5]
+    this_month_query = base.filter(Quotation.issue_date >= month_start)
+    this_month = this_month_query.count()
+    total_ars_this_month = (
+        this_month_query.with_entities(func.coalesce(func.sum(Quotation.total_ars), 0.0)).scalar()
+    )
+
+    expiring_soon = base.filter(
+        Quotation.status.in_(("draft", "sent")),
+        Quotation.due_date.isnot(None),
+        Quotation.due_date >= now,
+        Quotation.due_date <= week_ahead,
+    ).count()
+
+    by_status = dict(
+        base.with_entities(Quotation.status, func.count(Quotation.id))
+        .group_by(Quotation.status)
+        .all()
+    )
+
+    recent = base.order_by(Quotation.issue_date.desc()).limit(5).all()
 
     return {
-        "total": len(all_q),
-        "this_month": len(this_month),
-        "total_ars_this_month": sum(q.total_ars for q in this_month),
+        "total": total,
+        "this_month": this_month,
+        "total_ars_this_month": float(total_ars_this_month or 0.0),
         "by_status": by_status,
-        "expiring_soon": len(expiring),
+        "expiring_soon": expiring_soon,
         "recent": [
             {
                 "id": q.id,
@@ -220,8 +235,9 @@ def get_quotation_pdf(
             pdf_bytes = pdf_path.read_bytes()
     except ValueError:
         raise HTTPException(status_code=404, detail="Quotation not found")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Error generating PDF") from exc
+    except Exception:
+        logger.exception("Error generating PDF", extra={"quotation_id": quotation_id})
+        raise HTTPException(status_code=500, detail="Error generating PDF")
 
     return StreamingResponse(
         iter([pdf_bytes]),

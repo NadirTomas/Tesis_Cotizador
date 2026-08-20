@@ -8,7 +8,7 @@ from app.models.material import Material
 from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
-from app.schemas.quotation_item import QuotationItemCreate, QuotationItemRead
+from app.schemas.quotation_item import QuotationItemCreate, QuotationItemRead, QuotationItemUpdate
 from app.services.quotation_calculator import calculate_quotation_item
 
 
@@ -73,6 +73,34 @@ def list_items_by_quotation(
         .filter(QuotationItem.quotation_id == quotation_id)
         .all()
     )
+
+
+@router.put("/{item_id}", response_model=QuotationItemRead)
+def update_quotation_item(
+    item_id: int,
+    payload: QuotationItemUpdate,
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
+    item = (
+        db.query(QuotationItem)
+        .join(Quotation, Quotation.id == QuotationItem.quotation_id)
+        .filter(QuotationItem.id == item_id, Quotation.company_id == member.company_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    update_data = payload.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(item, key, value)
+    db.flush()
+    try:
+        calculate_quotation_item(db, item, member.company_id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return item
 
 
 @router.delete("/{item_id}", status_code=204)

@@ -341,6 +341,8 @@ const PiecesPage = () => {
             value={importName}
             onChange={(e) => setImportName(e.target.value)}
             fullWidth required disabled={!dxfFile}
+            helperText="Se completa con el nombre del archivo — seleccioná todo antes de escribir para reemplazarlo"
+            slotProps={{ htmlInput: { onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.target.select() } }}
           />
           <FormControl fullWidth>
             <InputLabel>Material (opcional)</InputLabel>
