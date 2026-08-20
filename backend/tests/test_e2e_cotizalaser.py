@@ -88,6 +88,7 @@ def test_full_flow_rect_100x50():
         "/materials",
         json={
             "name": "Acero Test",
+            "material_type": "Acero al carbono",
             "thickness_mm": 2.0,
             "sheet_width_mm": 1000.0,
             "sheet_height_mm": 1000.0,

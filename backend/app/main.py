@@ -20,6 +20,7 @@ from app.api.v1.routes_nesting import router as nesting_router
 from app.api.v1.routes_pieces import router as pieces_router
 from app.api.v1.routes_quotation_items import router as quotation_items_router
 from app.api.v1.routes_quotations import router as quotations_router
+from app.api.v1.routes_stock import router as stock_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.init_db import init_db
@@ -88,6 +89,7 @@ app.include_router(pieces_router)
 app.include_router(quotations_router)
 app.include_router(quotation_items_router)
 app.include_router(nesting_router)
+app.include_router(stock_router)
 
 
 @app.get("/", response_model=dict)

@@ -80,7 +80,7 @@ def test_cannot_use_machine_config_from_other_company_in_quotation_item():
 
     res = client.post(
         "/materials",
-        json={"name": "Acero A", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
+        json={"name": "Acero A", "material_type": "Acero al carbono", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
         headers=headers_a,
     )
     material_a = res.json()["id"]

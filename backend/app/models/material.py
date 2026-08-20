@@ -8,6 +8,8 @@ class Material(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    material_type = Column(String, nullable=True)  # "Acero al carbono", "Acero inoxidable", "Aluminio"...
+    alloy = Column(String, nullable=True)  # "SAE 1010", "AISI 304"... (no todo material tiene una)
     thickness_mm = Column(Float, nullable=False)
     sheet_width_mm = Column(Float, nullable=False)
     sheet_height_mm = Column(Float, nullable=False)

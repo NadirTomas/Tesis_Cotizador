@@ -75,7 +75,7 @@ def _setup_owner():
 def _create_material(headers):
     res = client.post(
         "/materials",
-        json={"name": "Acero", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
+        json={"name": "Acero", "material_type": "Acero al carbono", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
         headers=headers,
     )
     return res.json()["id"]

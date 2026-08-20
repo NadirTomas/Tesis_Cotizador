@@ -71,7 +71,7 @@ def test_owner_can_update_sensitive_config():
     owner_headers, _, _ = _setup_owner_and_employee()
     res = client.post(
         "/materials",
-        json={"name": "Acero", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
+        json={"name": "Acero", "material_type": "Acero al carbono", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
         headers=owner_headers,
     )
     assert res.status_code == 200
@@ -81,7 +81,7 @@ def test_employee_cannot_update_sensitive_config():
     _, employee_headers, _ = _setup_owner_and_employee()
     res = client.post(
         "/materials",
-        json={"name": "Acero", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
+        json={"name": "Acero", "material_type": "Acero al carbono", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000},
         headers=employee_headers,
     )
     assert res.status_code == 403

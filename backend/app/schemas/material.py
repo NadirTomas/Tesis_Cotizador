@@ -13,11 +13,14 @@ class MaterialBase(BaseModel):
 
 
 class MaterialCreate(MaterialBase):
-    pass
+    material_type: str
+    alloy: Optional[str] = None
 
 
 class MaterialUpdate(BaseModel):
     name: Optional[str] = None
+    material_type: Optional[str] = None
+    alloy: Optional[str] = None
     thickness_mm: Optional[float] = None
     sheet_width_mm: Optional[float] = None
     sheet_height_mm: Optional[float] = None
@@ -27,6 +30,8 @@ class MaterialUpdate(BaseModel):
 class MaterialRead(MaterialBase):
     id: int
     company_id: int
+    material_type: Optional[str] = None
+    alloy: Optional[str] = None
     active: bool
     created_at: datetime
     updated_at: datetime
