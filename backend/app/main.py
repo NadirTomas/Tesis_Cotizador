@@ -7,6 +7,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.v1.routes_admin import router as admin_router
 from app.api.v1.routes_auth import router as auth_router
 from app.api.v1.routes_clients import router as clients_router
 from app.api.v1.routes_companies import router as companies_router
@@ -65,6 +66,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(companies_router)
 app.include_router(materials_router)

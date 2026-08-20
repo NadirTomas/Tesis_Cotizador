@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     # JWT — CRÍTICO: en producción DEBE venir de variable de entorno
     # Si no está seteada, lanza error en startup (no defaults inseguros)
     SECRET_KEY: str
+    # Clave para /admin/companies (alta de empresas nuevas). Vacía = endpoint deshabilitado.
+    ADMIN_SECRET: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
     # File upload limits (in bytes)
