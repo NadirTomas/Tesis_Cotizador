@@ -3,6 +3,7 @@ from typing import Tuple
 
 import ezdxf
 from ezdxf import recover
+from shapely.geometry import Point, Polygon
 
 
 # Paso 7: Análisis básico de DXF (longitud y área)
@@ -226,6 +227,130 @@ def _bounding_box_fallback(path: str) -> tuple[float, float]:
         return 0.0, 0.0
 
     return max(all_x) - min(all_x), max(all_y) - min(all_y)
+
+
+def extract_piece_polygon(path: str) -> Polygon:
+    """
+    Extrae el contorno 2D de la pieza como un polígono de Shapely (con huecos
+    internos si corresponde), para el motor de recomendación de stock.
+
+    Mismo patrón de lectura robusto que analyze_dxf/get_bounding_box. No
+    interpreta bulge (arcos dentro de una LWPOLYLINE) — misma simplificación
+    que ya tiene el cálculo de longitud/área existente, no es una regresión
+    nueva. Si el DXF no puede leerse ni con ezdxf.readfile ni con
+    recover.readfile, o no se encuentra ningún contorno cerrado válido, se
+    lanza ValueError con un mensaje entendible en vez de seguir de largo con
+    una geometría inválida.
+    """
+    try:
+        doc = ezdxf.readfile(path)
+        msp = doc.modelspace()
+    except Exception:
+        try:
+            doc, _auditor = recover.readfile(path)
+            msp = doc.modelspace()
+        except Exception:
+            # Mismos DXF mínimos/con errores que ya forzaban el fallback
+            # manual en get_bounding_box (p. ej. falta la subclase
+            # AcDbPolyline) — se reutiliza el mismo parseo línea por línea.
+            return _build_polygon_from_loops(_loops_from_fallback_parse(path))
+
+    return _build_polygon_from_loops(_loops_from_msp(msp))
+
+
+def _loops_from_msp(msp) -> list[Polygon]:
+    loops: list[Polygon] = []
+    for entity in msp:
+        dxftype = entity.dxftype()
+        if dxftype == "LWPOLYLINE":
+            is_closed = entity.closed or getattr(entity, "is_closed", False)
+            if not is_closed:
+                continue
+            vertices = [(v[0], v[1]) for v in entity.get_points("xy")]
+            if len(vertices) < 3:
+                continue
+            try:
+                poly = Polygon(vertices)
+            except Exception:
+                continue
+            if poly.is_valid and poly.area > 0:
+                loops.append(poly)
+        elif dxftype == "CIRCLE":
+            cx, cy, r = entity.dxf.center.x, entity.dxf.center.y, entity.dxf.radius
+            if r > 0:
+                loops.append(Point(cx, cy).buffer(r, resolution=32))
+    return loops
+
+
+def _loops_from_fallback_parse(path: str) -> list[Polygon]:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            lines = [line.strip() for line in handle.readlines()]
+    except Exception as exc:
+        raise ValueError(f"DXF inválido o no se pudo leer: {exc}") from exc
+
+    loops: list[Polygon] = []
+    idx = 0
+    while idx < len(lines) - 1:
+        code = lines[idx]
+        value = lines[idx + 1]
+        if code == "0" and value in {"LWPOLYLINE", "CIRCLE"}:
+            entity_type = value
+            idx += 2
+            vertices: list[tuple[float, float]] = []
+            is_closed = False
+            center = None
+            radius = None
+
+            while idx < len(lines) - 1 and lines[idx] != "0":
+                group_code = lines[idx]
+                group_value = lines[idx + 1]
+                if entity_type == "LWPOLYLINE":
+                    if group_code == "70":
+                        is_closed = int(group_value) & 1 == 1
+                    elif group_code == "10":
+                        x = float(group_value)
+                        y = float(lines[idx + 3]) if lines[idx + 2] == "20" else None
+                        if y is not None:
+                            vertices.append((x, y))
+                elif entity_type == "CIRCLE":
+                    if group_code == "10":
+                        x = float(group_value)
+                        y = float(lines[idx + 3]) if lines[idx + 2] == "20" else None
+                        center = (x, y) if y is not None else center
+                    elif group_code == "40":
+                        radius = float(group_value)
+                idx += 2
+
+            if entity_type == "LWPOLYLINE" and is_closed and len(vertices) >= 3:
+                try:
+                    poly = Polygon(vertices)
+                except Exception:
+                    poly = None
+                if poly is not None and poly.is_valid and poly.area > 0:
+                    loops.append(poly)
+            elif entity_type == "CIRCLE" and center is not None and radius and radius > 0:
+                loops.append(Point(center).buffer(radius, resolution=32))
+        else:
+            idx += 2
+
+    return loops
+
+
+def _build_polygon_from_loops(loops: list[Polygon]) -> Polygon:
+    if not loops:
+        raise ValueError("No se pudo obtener un polígono cerrado válido del DXF.")
+
+    loops.sort(key=lambda p: p.area, reverse=True)
+    exterior = loops[0]
+    holes = [loop.exterior.coords for loop in loops[1:] if exterior.contains(loop)]
+
+    polygon = Polygon(exterior.exterior.coords, holes=holes) if holes else exterior
+
+    if not polygon.is_valid or polygon.area <= 0:
+        raise ValueError("El contorno de la pieza no forma un polígono válido.")
+
+    return polygon
 
 
 def _polygon_area(vertices: list[tuple[float, float]]) -> float:

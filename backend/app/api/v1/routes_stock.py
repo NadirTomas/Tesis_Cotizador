@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -5,11 +8,15 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.company_member import CompanyMember
 from app.models.material import Material
+from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.stock_sheet import StockSheet
+from app.schemas.stock_recommendation import StockRecommendation, StockRecommendationRequest
 from app.schemas.stock_sheet import StockSheetCreate, StockSheetRead, StockSheetUpdate
 from app.services.company_guard import get_current_company, require_owner
+from app.services.dxf_analysis import extract_piece_polygon
 from app.services.geometry import measure_geometry, rectangle_geojson
+from app.services.stock_recommendation import recommend_stock_for_piece
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
@@ -193,3 +200,52 @@ def discard_stock_sheet(
     db.commit()
     db.refresh(stock)
     return stock
+
+
+@router.post("/recommendations", response_model=StockRecommendation)
+def recommend_stock(
+    payload: StockRecommendationRequest,
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+):
+    piece = (
+        db.query(Piece)
+        .filter(Piece.id == payload.piece_id, Piece.company_id == member.company_id)
+        .first()
+    )
+    if not piece:
+        raise HTTPException(status_code=404, detail="Piece not found")
+    if not piece.dxf_data:
+        raise HTTPException(status_code=400, detail="La pieza no tiene DXF cargado.")
+
+    with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as tmp:
+        tmp.write(piece.dxf_data)
+        tmp_path = tmp.name
+    try:
+        piece_polygon = extract_piece_polygon(tmp_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    try:
+        result = recommend_stock_for_piece(db, member.company_id, piece_polygon, payload.material_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="No hay stock disponible que contenga la pieza")
+
+    return StockRecommendation(
+        stock_sheet_id=result.stock_sheet.id,
+        stock_code=result.stock_sheet.code,
+        stock_type=result.stock_sheet.stock_type,
+        rotation=result.rotation,
+        x=result.x,
+        y=result.y,
+        piece_area_mm2=result.piece_area_mm2,
+        stock_remaining_area_mm2=result.stock_sheet.remaining_area_mm2,
+        utilization_percent=result.utilization_percent,
+        score=result.score,
+        reason=result.reason,
+    )
