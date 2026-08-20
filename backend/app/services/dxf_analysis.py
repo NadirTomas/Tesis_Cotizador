@@ -136,7 +136,11 @@ def get_bounding_box(path: str) -> tuple[float, float]:
         doc = ezdxf.readfile(path)
         msp = doc.modelspace()
     except Exception:
-        return 0.0, 0.0
+        try:
+            doc, _auditor = recover.readfile(path)
+            msp = doc.modelspace()
+        except Exception:
+            return _bounding_box_fallback(path)
 
     all_x: list[float] = []
     all_y: list[float] = []
@@ -158,6 +162,65 @@ def get_bounding_box(path: str) -> tuple[float, float]:
             cx, cy, r = entity.dxf.center.x, entity.dxf.center.y, entity.dxf.radius
             all_x += [cx - r, cx + r]
             all_y += [cy - r, cy + r]
+
+    if not all_x:
+        return _bounding_box_fallback(path)
+
+    return max(all_x) - min(all_x), max(all_y) - min(all_y)
+
+
+def _bounding_box_fallback(path: str) -> tuple[float, float]:
+    """
+    Igual que `_analyze_dxf_fallback`, pero acumulando el bounding box en vez
+    de longitud/área. Se usa cuando ezdxf no puede leer el DXF (mismos DXF
+    mínimos/con errores que ya forzaban ese fallback en `analyze_dxf`).
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
+            lines = [line.strip() for line in handle.readlines()]
+    except Exception:
+        return 0.0, 0.0
+
+    all_x: list[float] = []
+    all_y: list[float] = []
+
+    idx = 0
+    while idx < len(lines) - 1:
+        code = lines[idx]
+        value = lines[idx + 1]
+        if code == "0" and value in {"LINE", "LWPOLYLINE", "CIRCLE"}:
+            entity_type = value
+            idx += 2
+            center = None
+            radius = None
+
+            while idx < len(lines) - 1 and lines[idx] != "0":
+                group_code = lines[idx]
+                group_value = lines[idx + 1]
+                if entity_type in {"LINE", "LWPOLYLINE"}:
+                    if group_code in {"10", "11"}:
+                        x = float(group_value)
+                        y_code = "20" if group_code == "10" else "21"
+                        y = float(lines[idx + 3]) if lines[idx + 2] == y_code else None
+                        if y is not None:
+                            all_x.append(x)
+                            all_y.append(y)
+                elif entity_type == "CIRCLE":
+                    if group_code == "10":
+                        x = float(group_value)
+                        y = float(lines[idx + 3]) if lines[idx + 2] == "20" else None
+                        center = (x, y) if y is not None else center
+                    elif group_code == "40":
+                        radius = float(group_value)
+
+                idx += 2
+
+            if entity_type == "CIRCLE" and center is not None and radius is not None:
+                cx, cy = center
+                all_x += [cx - radius, cx + radius]
+                all_y += [cy - radius, cy + radius]
+        else:
+            idx += 2
 
     if not all_x:
         return 0.0, 0.0

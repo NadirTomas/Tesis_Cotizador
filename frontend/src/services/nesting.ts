@@ -1,29 +1,43 @@
 import { API_BASE_URL } from "../config/api";
 import { apiFetch, getAuthHeaders } from "./apiClient";
 
-export interface NestingPosition {
+export interface Placement {
+  piece_id: number;
+  piece_label: string;
   x: number;
   y: number;
+  width_mm: number;
+  height_mm: number;
+  rotated: boolean;
+}
+
+export interface NestingSheet {
+  placements: Placement[];
+  utilization_pct: number;
 }
 
 export interface NestingResult {
-  positions: NestingPosition[];
-  pieces_fit: number;
-  pieces_per_row: number;
-  rows: number;
-  utilization_pct: number;
-  piece_width_mm: number;
-  piece_height_mm: number;
+  sheets: NestingSheet[];
+  total_sheets: number;
+  total_pieces_requested: number;
+  total_pieces_placed: number;
+  overall_utilization_pct: number;
   sheet_width_mm: number;
   sheet_height_mm: number;
   margin_mm: number;
 }
 
-export interface NestingRequest {
+export interface NestingItemRequest {
   piece_id: number;
+  quantity: number;
+}
+
+export interface NestingRequest {
+  items: NestingItemRequest[];
   sheet_width_mm: number;
   sheet_height_mm: number;
   margin_mm?: number;
+  allow_rotation?: boolean;
 }
 
 const BASE = `${API_BASE_URL}/nesting`;
