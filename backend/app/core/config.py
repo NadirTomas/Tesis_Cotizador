@@ -23,8 +23,6 @@ class Settings(BaseSettings):
     # File upload limits (in bytes)
     MAX_DXF_SIZE: int = 10 * 1024 * 1024  # 10MB
     MAX_LOGO_SIZE: int = 5 * 1024 * 1024  # 5MB
-    # Cost calculation
-    LABOR_COST_PERCENT: float = 0.30  # 30% del costo de máquina
 
     class Config:
         env_file = ".env"

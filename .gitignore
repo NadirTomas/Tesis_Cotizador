@@ -46,3 +46,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Scripts locales con credenciales — nunca deben subirse (ver test_railway.py)
+test_railway.py

@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -44,6 +45,10 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
+# Sin este handler, superar un @limiter.limit(...) devolvía 500 (caído en el
+# handler genérico de Exception) en vez de 429 — el límite igual bloqueaba,
+# pero con el código de error equivocado.
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS: localmente acepta localhost, en producción acepta FRONTEND_URL
 origins = ["http://localhost:5173", "http://localhost:5174"]

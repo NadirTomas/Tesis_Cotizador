@@ -20,6 +20,36 @@ router = APIRouter(prefix="/quotation-items", tags=["quotation-items"])
 _FIELD_LABELS = {"quantity": "Cantidad", "margin_percent": "Margen"}
 
 
+def _require_editable(quotation: Quotation) -> None:
+    """
+    Agregar un ítem o cambiar su cantidad/margen (re-precificar) solo tiene
+    sentido mientras la cotización sigue en borrador — una vez enviada o
+    aceptada, el total ya fue comunicado/aprobado y no debe poder cambiar en
+    silencio.
+    """
+    if quotation.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pueden agregar ni editar ítems de una cotización en estado '{quotation.status}'.",
+        )
+
+
+def _require_deletable(quotation: Quotation) -> None:
+    """
+    Eliminar un ítem sí se permite además en 'accepted': es la vía normal
+    para dar de baja una pieza puntual de un trabajo ya aprobado (p. ej. no
+    se puede fabricar), y ya libera su reserva de stock si tenía una activa
+    (ver stock_reservations.release_reservation). No se permite en 'sent'
+    (evita alterar lo que el cliente todavía está evaluando) ni en
+    'cancelled' (ya no hay nada que gestionar).
+    """
+    if quotation.status not in ("draft", "accepted"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se pueden eliminar ítems de una cotización en estado '{quotation.status}'.",
+        )
+
+
 @router.post("/", response_model=QuotationItemRead)
 def create_quotation_item(
     payload: QuotationItemCreate,
@@ -33,6 +63,7 @@ def create_quotation_item(
     )
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    _require_editable(quotation)
     piece = (
         db.query(Piece)
         .filter(Piece.id == payload.piece_id, Piece.company_id == member.company_id)
@@ -99,6 +130,7 @@ def update_quotation_item(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    _require_editable(item.quotation)
 
     update_data = payload.dict(exclude_unset=True)
     changes = [f"{_FIELD_LABELS.get(key, key)}: {getattr(item, key)} → {value}" for key, value in update_data.items()]
@@ -130,6 +162,7 @@ def delete_quotation_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     quotation = db.query(Quotation).filter(Quotation.id == item.quotation_id).first()
+    _require_deletable(quotation)
     piece = db.query(Piece).filter(Piece.id == item.piece_id).first()
     piece_label = piece.name if piece else f"pieza #{item.piece_id}"
     log_event(db, item.quotation_id, "item_removed", f"Pieza eliminada: {piece_label}", member.user_id)

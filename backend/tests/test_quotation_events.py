@@ -64,16 +64,29 @@ def test_quotation_lifecycle_generates_expected_events():
 
     client.put(f"/quotation-items/{item_id}", json={"quantity": 5}, headers=headers)
     client.patch(f"/quotations/{quotation_id}/status", json={"status": "sent"}, headers=headers)
-    client.delete(f"/quotation-items/{item_id}", headers=headers)
+
+    # Una vez "sent" el contenido queda fijo hasta que se acepte o cancele —
+    # ni editar ni eliminar ítems está permitido en este estado.
+    res = client.delete(f"/quotation-items/{item_id}", headers=headers)
+    assert res.status_code == 400
+
+    client.patch(f"/quotations/{quotation_id}/status", json={"status": "accepted"}, headers=headers)
+    # "accepted" sí permite eliminar (da de baja una pieza puntual y libera
+    # su reserva de stock si tenía una — ver routes_quotation_items.py).
+    res = client.delete(f"/quotation-items/{item_id}", headers=headers)
+    assert res.status_code == 204
 
     res = client.get(f"/quotations/{quotation_id}/events", headers=headers)
     assert res.status_code == 200
     events = res.json()
     event_types = [e["event_type"] for e in events]
     # más reciente primero
-    assert event_types == ["item_removed", "status_changed", "item_updated", "item_added", "created"]
+    assert event_types == [
+        "item_removed", "status_changed", "status_changed", "item_updated", "item_added", "created",
+    ]
     assert all(e["created_by_email"] == "owner@test.com" for e in events)
-    assert "Borrador → Enviado" in events[1]["description"]
+    assert "Borrador → Enviado" in events[2]["description"]
+    assert "Enviado → Aceptado" in events[1]["description"]
     assert "Pieza eliminada" in events[0]["description"]
 
 
