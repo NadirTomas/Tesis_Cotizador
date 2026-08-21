@@ -443,11 +443,13 @@ const QuotationDetailPage = () => {
                       </TableCell>
                     )}
                     <TableCell align="center" sx={{ py: 0 }}>
-                      <Tooltip title="Eliminar ítem">
-                        <IconButton size="small" color="error" onClick={() => setDeleteItemId(item.id)}>
-                          <Delete fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {(quotation.status === "draft" || quotation.status === "accepted") && (
+                        <Tooltip title="Eliminar ítem">
+                          <IconButton size="small" color="error" onClick={() => setDeleteItemId(item.id)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -518,7 +520,9 @@ const QuotationDetailPage = () => {
 
       <Divider />
 
-      {/* Agregar ítem */}
+      {/* Agregar ítem — solo mientras la cotización sigue en borrador; una
+          vez enviada/aceptada su contenido queda fijo (ver backend). */}
+      {quotation.status === "draft" ? (
       <Box>
         <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "0.78rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "text.secondary", mb: 2 }}>
           Agregar ítem
@@ -623,6 +627,11 @@ const QuotationDetailPage = () => {
           </Paper>
         )}
       </Box>
+      ) : (
+        <Typography sx={{ fontSize: "0.82rem", color: "text.secondary" }}>
+          No se pueden agregar más ítems — la cotización ya no está en borrador.
+        </Typography>
+      )}
 
       {/* Ver ubicación de la recomendación */}
       <Dialog open={!!locationView} onClose={() => setLocationView(null)} maxWidth="sm" fullWidth>
