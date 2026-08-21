@@ -1,5 +1,5 @@
 import { Box, CircularProgress } from "@mui/material";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import MainLayout from "./layouts/MainLayout";
@@ -45,6 +45,12 @@ function RequireOwner({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const { companyName } = useAuth();
+
+  useEffect(() => {
+    document.title = companyName ? `${companyName} — CotizaLaser` : "CotizaLaser";
+  }, [companyName]);
+
   return (
     <Suspense fallback={<RouteFallback />}>
       <Routes>
