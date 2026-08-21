@@ -9,8 +9,12 @@ import {
   Typography,
   Button,
   Divider,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import MenuIcon from "@mui/icons-material/Menu";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
@@ -51,6 +55,9 @@ const navItems = [
 const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { logout, clearCompany, companyName, companyRole } = useAuth();
   const items = companyRole === "owner"
     ? [...navItems, { label: "Empleados", path: "/employees", icon: <GroupOutlinedIcon fontSize="small" /> }]
@@ -61,13 +68,57 @@ const MainLayout = () => {
     return location.pathname.startsWith(path);
   };
 
+  const goTo = (path: string) => {
+    navigate(path);
+    setMobileOpen(false);
+  };
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      {/* Barra superior — solo en mobile, con el botón para abrir el drawer */}
+      {isMobile && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: (t) => t.zIndex.appBar,
+            height: 56,
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            px: 1.5,
+            bgcolor: "#0A0B0E",
+            borderBottom: "1px solid #1A1C24",
+          }}
+        >
+          <IconButton onClick={() => setMobileOpen(true)} sx={{ color: "#E8E9EB" }}>
+            <MenuIcon />
+          </IconButton>
+          <Typography
+            sx={{
+              fontFamily: '"Barlow Condensed", sans-serif',
+              fontWeight: 700,
+              fontSize: "1.05rem",
+              letterSpacing: "0.05em",
+              color: "#E8E9EB",
+              textTransform: "uppercase",
+            }}
+          >
+            {companyName ?? "CotizaLaser"}
+          </Typography>
+        </Box>
+      )}
+
       {/* Sidebar */}
       <Drawer
-        variant="permanent"
+        variant={isMobile ? "temporary" : "permanent"}
+        open={isMobile ? mobileOpen : true}
+        onClose={() => setMobileOpen(false)}
+        ModalProps={{ keepMounted: true }}
         sx={{
-          width: DRAWER_WIDTH,
+          width: isMobile ? 0 : DRAWER_WIDTH,
           flexShrink: 0,
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
@@ -83,7 +134,7 @@ const MainLayout = () => {
         <Box sx={{ px: 2.5, py: 3, borderBottom: "1px solid #1A1C24" }}>
           <Box
             sx={{ display: "flex", alignItems: "center", gap: 1.5, cursor: "pointer" }}
-            onClick={() => navigate("/")}
+            onClick={() => goTo("/")}
           >
             {/* Ícono marca */}
             <Box
@@ -167,7 +218,7 @@ const MainLayout = () => {
             <IconButton
               size="small"
               title="Cambiar empresa"
-              onClick={() => { clearCompany(); navigate("/select-company"); }}
+              onClick={() => { clearCompany(); goTo("/select-company"); }}
               sx={{ color: "#6B7280", "&:hover": { color: "#E8E9EB" } }}
             >
               <SwapHorizIcon fontSize="small" />
@@ -182,7 +233,7 @@ const MainLayout = () => {
             return (
               <ListItemButton
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => goTo(item.path)}
                 sx={{
                   borderRadius: "7px",
                   px: 1.5,
@@ -230,7 +281,7 @@ const MainLayout = () => {
             fullWidth
             variant="contained"
             startIcon={<AddIcon fontSize="small" />}
-            onClick={() => navigate("/quotes/new-from-cad")}
+            onClick={() => goTo("/quotes/new-from-cad")}
             sx={{ py: 1.1 }}
           >
             Nueva Cotización
@@ -252,12 +303,14 @@ const MainLayout = () => {
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           minHeight: "100vh",
           bgcolor: "background.default",
           overflow: "auto",
+          mt: isMobile ? "56px" : 0,
         }}
       >
-        <Box sx={{ p: { xs: 3, md: 4 } }}>
+        <Box sx={{ p: { xs: 2, md: 4 } }}>
           <Outlet />
         </Box>
       </Box>

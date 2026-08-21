@@ -150,7 +150,7 @@ const MachineConfigsPage = () => {
   return (
     <Box>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2} mb={4}>
         <Box>
           <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
             <Box sx={{ width: 3, height: 26, bgcolor: "#A78BFA", borderRadius: 1, boxShadow: "0 0 10px rgba(167,139,250,0.5)", flexShrink: 0 }} />

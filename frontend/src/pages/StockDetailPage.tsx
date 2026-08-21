@@ -109,7 +109,7 @@ const StockDetailPage = () => {
 
   return (
     <Box display="flex" flexDirection="column" gap={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
         <Box>
           <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
             <Button startIcon={<ArrowBack />} onClick={() => navigate("/stock")} size="small" sx={{ mr: 0.5 }}>

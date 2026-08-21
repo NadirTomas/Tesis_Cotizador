@@ -305,7 +305,7 @@ const QuotationDetailPage = () => {
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
         <Box>
           <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
             <Button startIcon={<ArrowBack />} onClick={() => navigate("/quotations")} size="small" sx={{ mr: 0.5 }}>
@@ -320,7 +320,7 @@ const QuotationDetailPage = () => {
             {clName(quotation.client_id)} · {new Date(quotation.issue_date).toLocaleDateString("es-AR")}
           </Typography>
         </Box>
-        <Box display="flex" alignItems="center" gap={1.5}>
+        <Box display="flex" alignItems="center" flexWrap="wrap" gap={1.5}>
           {(() => {
             const s = STATUS_CONFIG[quotation.status] ?? { label: quotation.status, color: "default" as const };
             return <Chip label={s.label} color={s.color} size="small" />;
