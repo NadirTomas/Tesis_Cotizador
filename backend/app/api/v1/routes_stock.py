@@ -24,6 +24,7 @@ from app.schemas.stock_reservation import (
     ReserveStockRequest,
     StockMovementRead,
     StockReservationRead,
+    StockReservationWithStockRead,
 )
 from app.schemas.stock_sheet import StockSheetCreate, StockSheetRead, StockSheetUpdate
 from app.services.company_guard import get_current_company, require_owner
@@ -194,6 +195,42 @@ def list_stock_sheets(
             query = query.filter(Material.thickness_mm == thickness_mm)
 
     return query.order_by(StockSheet.id.desc()).all()
+
+
+@router.get("/reservations", response_model=list[StockReservationWithStockRead])
+def list_stock_reservations(
+    db: Session = Depends(get_db),
+    member: CompanyMember = Depends(get_current_company),
+    quotation_id: int | None = Query(default=None),
+    status: str | None = Query(default=None),
+):
+    """
+    Reservas de la empresa activa, con el código de stock ya resuelto —
+    usado por el frontend para reconstruir qué ítems de una cotización ya
+    tienen material reservado/cortado después de recargar la página (el
+    estado de reserva por ítem no se persiste solo en memoria del cliente).
+    Registrado antes de GET /{stock_id} para que "reservations" no se
+    intente interpretar como un stock_id.
+    """
+    query = (
+        db.query(StockReservation, StockSheet.code)
+        .join(StockSheet, StockSheet.id == StockReservation.stock_sheet_id)
+        .filter(StockReservation.company_id == member.company_id)
+    )
+    if quotation_id is not None:
+        query = query.filter(StockReservation.quotation_id == quotation_id)
+    if status is not None:
+        query = query.filter(StockReservation.status == status)
+
+    rows = query.order_by(StockReservation.id.desc()).all()
+    return [
+        StockReservationWithStockRead(
+            id=r.id, stock_sheet_id=r.stock_sheet_id, piece_id=r.piece_id, quotation_id=r.quotation_id,
+            quotation_item_id=r.quotation_item_id, rotation=r.rotation, x=r.x, y=r.y, status=r.status,
+            created_by_id=r.created_by_id, created_at=r.created_at, stock_code=code,
+        )
+        for r, code in rows
+    ]
 
 
 @router.get("/{stock_id}", response_model=StockSheetRead)
@@ -390,13 +427,17 @@ def reserve_stock(
         status="ACTIVE",
         created_by_id=member.user_id,
     )
-    db.add(reservation)
-    db.flush()
-    _log_movement(
-        db, member.company_id, stock.id, "RESERVED", quotation_id=quotation.id, created_by_id=member.user_id,
-        details={"reservation_id": reservation.id, "rotation": placement.rotation, "x": placement.x, "y": placement.y},
-    )
-    db.commit()
+    try:
+        db.add(reservation)
+        db.flush()
+        _log_movement(
+            db, member.company_id, stock.id, "RESERVED", quotation_id=quotation.id, created_by_id=member.user_id,
+            details={"reservation_id": reservation.id, "rotation": placement.rotation, "x": placement.x, "y": placement.y},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(reservation)
     return reservation
 
@@ -439,7 +480,13 @@ def confirm_cut(
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    stock = db.query(StockSheet).filter(StockSheet.id == reservation.stock_sheet_id).first()
+    stock = (
+        db.query(StockSheet)
+        .filter(StockSheet.id == reservation.stock_sheet_id, StockSheet.company_id == member.company_id)
+        .first()
+    )
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
 
     if reservation.status == "CONSUMED":
         # Idempotente: ya se había confirmado antes — se reconstruye la misma
@@ -468,7 +515,11 @@ def confirm_cut(
             status_code=400, detail=f"La reserva está en estado '{reservation.status}', no se puede confirmar"
         )
 
-    piece = db.query(Piece).filter(Piece.id == reservation.piece_id).first()
+    piece = (
+        db.query(Piece)
+        .filter(Piece.id == reservation.piece_id, Piece.company_id == member.company_id)
+        .first()
+    )
     if not piece:
         raise HTTPException(status_code=404, detail="Piece not found")
     piece_polygon = _extract_piece_polygon_or_400(piece)
@@ -491,7 +542,7 @@ def confirm_cut(
     updated_stock = (
         db.query(StockSheet)
         .filter(StockSheet.id == stock.id, StockSheet.status == "RESERVED")
-        .update({"status": "CONSUMED"})
+        .update({"status": "CONSUMED", "remaining_area_mm2": 0.0})
     )
     if updated_stock == 0:
         db.rollback()

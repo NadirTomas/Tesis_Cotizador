@@ -27,6 +27,10 @@ class StockReservationRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StockReservationWithStockRead(StockReservationRead):
+    stock_code: str
+
+
 class RemnantResult(BaseModel):
     stock_sheet_id: int
     code: str

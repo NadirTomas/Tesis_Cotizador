@@ -132,6 +132,33 @@ def _advance_to_accepted(headers, quotation_id):
     assert res.status_code == 200
 
 
+def _login(email: str, password: str = "Password1!") -> str:
+    res = client.post("/auth/login", json={"email": email, "password": password})
+    assert res.status_code == 200
+    return res.json()["access_token"]
+
+
+def _add_employee(owner_headers, company_id, email="employee_res@test.com"):
+    res = client.post(
+        f"/companies/{company_id}/members",
+        json={"email": email, "password": "Password1!", "role": "employee"},
+        headers=owner_headers,
+    )
+    assert res.status_code == 201
+    token = _login(email)
+    return {"Authorization": f"Bearer {token}", "X-Company-Id": str(company_id)}
+
+
+def _create_quotation_item(headers, quotation_id, piece_id, material_id, quantity=1):
+    res = client.post(
+        "/quotation-items",
+        json={"quotation_id": quotation_id, "piece_id": piece_id, "material_id": material_id, "quantity": quantity},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    return res.json()["id"]
+
+
 def _full_setup(email="owner@test.com", company_name="Empresa Reserva", piece_w=100, piece_h=50, stock_w=200, stock_h=200):
     _reset_db_file()
     init_db()
@@ -276,3 +303,67 @@ def test_movements_logged_for_reserve_and_release():
     assert res.status_code == 200
     movement_types = [m["movement_type"] for m in res.json()]
     assert movement_types == ["CREATED", "RESERVED", "RELEASED"]  # orden cronológico
+
+
+def test_employee_can_reserve_but_not_view_movements():
+    headers, material_id, piece_id, stock, quotation_id = _full_setup()
+    employee_headers = _add_employee(headers, stock["company_id"])
+    _advance_to_accepted(headers, quotation_id)
+
+    # Reservar/liberar es un uso del día a día, permitido a EMPLOYEE.
+    res = client.post(
+        f"/stock/{stock['id']}/reserve",
+        json={"piece_id": piece_id, "material_id": material_id, "quotation_id": quotation_id},
+        headers=employee_headers,
+    )
+    assert res.status_code == 200
+
+    # El historial de movimientos es administración de inventario, exclusiva del OWNER.
+    res = client.get(f"/stock/{stock['id']}/movements", headers=employee_headers)
+    assert res.status_code == 403
+
+
+def test_deleting_quotation_item_releases_its_active_reservation():
+    headers, material_id, piece_id, stock, quotation_id = _full_setup()
+    item_id = _create_quotation_item(headers, quotation_id, piece_id, material_id)
+    _advance_to_accepted(headers, quotation_id)
+
+    res = client.post(
+        f"/stock/{stock['id']}/reserve",
+        json={"piece_id": piece_id, "material_id": material_id, "quotation_id": quotation_id, "quotation_item_id": item_id},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    reservation_id = res.json()["id"]
+
+    res = client.delete(f"/quotation-items/{item_id}", headers=headers)
+    assert res.status_code == 204
+
+    res = client.get(f"/stock/{stock['id']}", headers=headers)
+    assert res.json()["status"] == "AVAILABLE"  # la reserva se liberó al borrar el ítem, no quedó huérfana
+
+    res = client.post(f"/stock/reservations/{reservation_id}/release", headers=headers)
+    assert res.status_code == 400  # ya estaba RELEASED, no ACTIVE
+
+
+def test_list_reservations_by_quotation_includes_stock_code_and_is_company_scoped():
+    headers, material_id, piece_id, stock, quotation_id = _full_setup()
+    headers_b, _ = _register_and_create_company("owner_reslist_b@test.com", "Empresa ResListB")
+    _advance_to_accepted(headers, quotation_id)
+    res = client.post(
+        f"/stock/{stock['id']}/reserve",
+        json={"piece_id": piece_id, "material_id": material_id, "quotation_id": quotation_id},
+        headers=headers,
+    )
+    reservation_id = res.json()["id"]
+
+    res = client.get("/stock/reservations", params={"quotation_id": quotation_id}, headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) == 1
+    assert data[0]["id"] == reservation_id
+    assert data[0]["stock_code"] == stock["code"]
+
+    # La empresa B no ve reservas de la empresa A aunque conozca el quotation_id.
+    res = client.get("/stock/reservations", params={"quotation_id": quotation_id}, headers=headers_b)
+    assert res.json() == []

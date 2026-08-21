@@ -8,8 +8,14 @@ from app.models.material import Material
 from app.models.stock_sheet import StockSheet
 from app.services.stock_placement import find_placement
 
-REMNANT_SCORE_WEIGHT = 0.4
-UTILIZATION_SCORE_WEIGHT = 0.6
+# Un retazo se considera "adecuado" (y por lo tanto se prioriza sobre
+# cualquier chapa completa) cuando su aprovechamiento alcanza este piso.
+# Por debajo de esto, preferir un retazo solo por ser retazo violaría la
+# regla de negocio "nunca recomendar un retazo ineficiente sobre una chapa
+# que ajusta mejor" — ver auditoría del score anterior (0.6*util+0.4*bonus),
+# que sí podía recomendar un retazo enorme y desperdiciado por encima de una
+# chapa que aprovechaba 100x mejor la pieza.
+MIN_ADEQUATE_REMNANT_UTILIZATION = 0.15
 
 
 @dataclass
@@ -95,13 +101,18 @@ def recommend_stock_for_piece(
             continue
 
         utilization_ratio = min(piece_area / stock.remaining_area_mm2, 1.0) if stock.remaining_area_mm2 > 0 else 0.0
-        remnant_bonus = 1.0 if stock.stock_type == "REMNANT" else 0.0
-        score = UTILIZATION_SCORE_WEIGHT * utilization_ratio + REMNANT_SCORE_WEIGHT * remnant_bonus
         utilization_percent = round(utilization_ratio * 100, 1)
+        is_adequate_remnant = stock.stock_type == "REMNANT" and utilization_ratio >= MIN_ADEQUATE_REMNANT_UTILIZATION
+        # Score expuesto como referencia/orden dentro de su nivel — no mezcla
+        # niveles: un retazo "adecuado" siempre puntúa por encima de
+        # cualquier candidato que no lo sea, sin importar utilización.
+        score = utilization_ratio + (1.0 if is_adequate_remnant else 0.0)
 
         reason = f"{stock.code} recomendado: contiene la pieza, aprovechamiento del {utilization_percent}% sobre ese stock"
-        if stock.stock_type == "REMNANT":
+        if is_adequate_remnant:
             reason += ", prioriza un retazo existente antes que una chapa nueva."
+        elif stock.stock_type == "REMNANT":
+            reason += " (retazo con bajo aprovechamiento, se lo trata como una chapa más)."
         else:
             reason += "."
 
@@ -118,5 +129,10 @@ def recommend_stock_for_piece(
             )
         )
 
-    results.sort(key=lambda r: r.score, reverse=True)
+    # Nivel 1: retazos "adecuados" (aprovechamiento >= umbral) primero,
+    # ordenados por mejor aprovechamiento entre sí.
+    # Nivel 2: todo lo demás (chapas completas + retazos poco eficientes),
+    # también ordenado por mejor aprovechamiento. Un retazo nunca le gana a
+    # una chapa solo por ser retazo si no llega al piso de adecuación.
+    results.sort(key=lambda r: (0 if r.score >= 1.0 else 1, -r.score))
     return results

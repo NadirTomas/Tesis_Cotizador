@@ -57,7 +57,7 @@ import {
   type QuotationEvent,
   type QuotationItem,
 } from "../services/quotations";
-import { confirmCut, getStockSheet, recommendStock, reserveStock, type StockRecommendation, type StockSheet } from "../services/stock";
+import { confirmCut, getStockSheet, listStockReservations, recommendStock, reserveStock, type StockRecommendation, type StockSheet } from "../services/stock";
 
 const EVENT_ICONS: Record<string, React.ElementType> = {
   created: AddCircleOutline,
@@ -162,6 +162,26 @@ const QuotationDetailPage = () => {
       setPieces(p);
       setMaterials(m);
       setEvents(ev);
+
+      if (q.status === "accepted") {
+        // Reconstruye qué ítems ya tienen material reservado/cortado desde
+        // el backend — itemReservations es solo estado de UI, no persiste
+        // entre recargas, así que sin esto el flujo reservar→cortar se
+        // "pierde" al volver a esta página.
+        try {
+          const reservations = await listStockReservations({ quotation_id: q.id });
+          const byItem: Record<number, { reservationId: number; stockCode: string; cut: boolean }> = {};
+          for (const r of reservations) {
+            if (r.quotation_item_id == null) continue;
+            if (r.status !== "ACTIVE" && r.status !== "CONSUMED") continue;
+            if (byItem[r.quotation_item_id]) continue; // ya viene ordenado por id desc, nos quedamos con la más reciente
+            byItem[r.quotation_item_id] = { reservationId: r.id, stockCode: r.stock_code, cut: r.status === "CONSUMED" };
+          }
+          setItemReservations(byItem);
+        } catch {
+          // no bloquea la carga de la cotización si esto falla
+        }
+      }
     } catch {
       setError("No se pudo cargar la cotización.");
     } finally {

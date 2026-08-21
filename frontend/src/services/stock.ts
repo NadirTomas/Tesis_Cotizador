@@ -77,6 +77,10 @@ export interface StockReservation {
   created_at: string;
 }
 
+export interface StockReservationWithStock extends StockReservation {
+  stock_code: string;
+}
+
 export interface RemnantResult {
   stock_sheet_id: number;
   code: string;
@@ -162,6 +166,18 @@ export async function recommendStock(pieceId: number, materialId: number): Promi
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail ?? "No se encontró stock disponible para esta pieza");
   }
+  return res.json();
+}
+
+export async function listStockReservations(
+  filters: { quotation_id?: number; status?: string } = {}
+): Promise<StockReservationWithStock[]> {
+  const params = new URLSearchParams();
+  if (filters.quotation_id !== undefined) params.set("quotation_id", String(filters.quotation_id));
+  if (filters.status !== undefined) params.set("status", filters.status);
+  const qs = params.toString();
+  const res = await apiFetch(`${BASE}/reservations${qs ? `?${qs}` : ""}`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Error al obtener las reservas");
   return res.json();
 }
 

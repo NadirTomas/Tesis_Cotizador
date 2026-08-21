@@ -289,3 +289,29 @@ def test_selects_the_best_scoring_candidate_among_alternatives():
     data = res.json()
     assert len(data) == 2  # las dos alternativas se devuelven, ordenadas
     assert data[0]["stock_sheet_id"] == well_fitted["id"]  # mejor aprovechamiento gana, no el más grande
+
+
+def test_does_not_prefer_an_inefficient_remnant_over_a_well_fitted_full_sheet():
+    # Auditoría del score anterior (0.6*utilización + 0.4*bonus retazo): un
+    # retazo enorme y mal aprovechado podía ganarle a una chapa que ajustaba
+    # mucho mejor, solo por el bonus fijo de ser retazo. Con la jerarquía
+    # actual (retazo "adecuado" >= 15% de aprovechamiento primero, después
+    # mejor aprovechamiento entre todo lo demás) la chapa bien ajustada debe
+    # ganar.
+    _reset_db_file()
+    init_db()
+    headers, _ = _register_and_create_company("owner_noineff@test.com", "Empresa NoIneficiente")
+    material_id = _create_material(headers)
+    _create_machine_config(headers, material_id)
+    piece_id = _create_piece_with_dxf(headers, material_id, 100, 50)  # area 5000 mm2
+
+    huge_remnant = _create_stock(headers, material_id, "REMNANT", width_mm=1000, height_mm=1000)  # util. 0.5%
+    good_sheet = _create_stock(headers, material_id, "FULL_SHEET", width_mm=110, height_mm=100)  # util. ~45%
+
+    res = client.post(
+        "/stock/recommendations", json={"piece_id": piece_id, "material_id": material_id}, headers=headers
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data[0]["stock_sheet_id"] == good_sheet["id"]
+    assert data[-1]["stock_sheet_id"] == huge_remnant["id"]

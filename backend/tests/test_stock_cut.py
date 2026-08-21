@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 from shapely.geometry import Polygon
+from sqlalchemy import text
 
 from app.db.init_db import init_db
 from app.db.session import engine
@@ -246,3 +247,33 @@ def test_full_integration_flow_quotation_to_new_stock():
 
     res = client.get("/stock", params={"status": "AVAILABLE", "stock_type": "REMNANT"}, headers=headers)
     assert any(s["id"] == remnant_id for s in res.json())
+
+
+def test_confirm_cut_via_http_creates_two_remnants_when_cut_splits_the_stock():
+    # find_placement (bottom-left) siempre ubica la pieza pegada a un borde,
+    # nunca partiendo la chapa al medio por sí solo — para probar el camino
+    # HTTP real de múltiples retazos (no solo compute_remnants como función
+    # pura) se reserva normalmente y se reescribe la posición ya verificada
+    # de la reserva a una franja central, tal como quedaría si el algoritmo
+    # de colocación evolucionara a futuro. Mismas dimensiones que el test
+    # unitario `test_multiple_remnants_when_cut_splits_stock_in_two`.
+    headers, stock, quotation_id, reservation_id = _full_flow_to_reserved(
+        stock_w=300, stock_h=100, piece_w=50, piece_h=100
+    )
+
+    with engine.connect() as conn:
+        conn.execute(
+            text("UPDATE stock_reservations SET x = 125, y = 0, rotation = 0 WHERE id = :id"),
+            {"id": reservation_id},
+        )
+        conn.commit()
+
+    res = client.post(f"/stock/reservations/{reservation_id}/confirm-cut", headers=headers)
+    assert res.status_code == 200
+    remnants = res.json()["remnants"]
+    assert len(remnants) == 2
+    areas = sorted(r["area_mm2"] for r in remnants)
+    assert areas == [125 * 100, 125 * 100]
+
+    res = client.get(f"/stock/{stock['id']}", headers=headers)
+    assert res.json()["remaining_area_mm2"] == 0  # se limpia al consumir, ya no queda un valor obsoleto
