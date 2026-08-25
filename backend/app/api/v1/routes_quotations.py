@@ -13,14 +13,13 @@ from app.models.client import Client
 from app.models.company_member import CompanyMember
 from app.models.quotation import Quotation
 from app.models.quotation_event import QuotationEvent
-from app.models.stock_reservation import StockReservation
 from app.models.user import User
 from app.schemas.quotation import QuotationCreate, QuotationRead
 from app.schemas.quotation_event import QuotationEventRead
 from app.services.pdf_generator import generate_quotation_pdf
 from app.services.company_guard import get_current_company
 from app.services.quotation_events import log_event
-from app.services.stock_reservations import release_reservation
+from app.services.stock_reservations import release_quotation_reservations
 
 
 router = APIRouter(prefix="/quotations", tags=["quotations"])
@@ -240,13 +239,23 @@ def update_status(
         member.user_id,
     )
     if status == "cancelled":
-        active_reservations = (
-            db.query(StockReservation)
-            .filter(StockReservation.quotation_id == quotation.id, StockReservation.status == "ACTIVE")
-            .all()
-        )
-        for reservation in active_reservations:
-            release_reservation(db, reservation, member.user_id)
+        if not release_quotation_reservations(db, quotation.id, member.user_id):
+            # Alguna reserva ya estaba CONSUMED, o pasó a CONSUMED en la
+            # misma ventana en que se intentaba liberar (confirm-cut
+            # concurrente ganó la carrera). Se descarta TODO lo pendiente
+            # de esta operación —el cambio de estado en memoria y el
+            # evento "status_changed" recién agregado, ninguno de los dos
+            # comiteado todavía— para que la cotización nunca quede
+            # 'cancelled' con material ya cortado.
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "No se pudo cancelar: ya se confirmó el corte de material para "
+                    "esta cotización, o una de sus reservas fue procesada por otra "
+                    "operación en simultáneo. La cotización no fue modificada."
+                ),
+            )
     db.commit()
     db.refresh(quotation)
     return quotation

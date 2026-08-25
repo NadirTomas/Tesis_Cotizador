@@ -17,7 +17,7 @@ class StockReservation(Base):
     stock_sheet_id = Column(Integer, ForeignKey("stock_sheets.id"), nullable=False, index=True)
     piece_id = Column(Integer, ForeignKey("pieces.id"), nullable=False)
     quotation_id = Column(Integer, ForeignKey("quotations.id"), nullable=False)
-    quotation_item_id = Column(Integer, ForeignKey("quotation_items.id"), nullable=True)
+    quotation_item_id = Column(Integer, ForeignKey("quotation_items.id", ondelete="SET NULL"), nullable=True)
     rotation = Column(Integer, nullable=False)
     x = Column(Float, nullable=False)
     y = Column(Float, nullable=False)

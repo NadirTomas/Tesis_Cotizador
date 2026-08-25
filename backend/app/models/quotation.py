@@ -42,3 +42,6 @@ class Quotation(Base):
     items = relationship(
         "QuotationItem", lazy="select", cascade="all, delete-orphan"
     )
+    events = relationship(
+        "QuotationEvent", lazy="select", cascade="all, delete-orphan"
+    )
