@@ -10,141 +10,126 @@ Reglas:
 - Mantener consistencia con el estado real del proyecto
 - No inventar funcionalidades
 
+> Reescrito por completo el 2026-08-25 tras una auditoría integral de `main`. La versión anterior (7 de abril) describía una arquitectura previa a multiempresa/stock/nesting real y ya no era confiable como fuente de verdad. Repositorio canónico: `NadirTomas/Tesis_Cotizador`, rama `main`. Nombre funcional del sistema: **CotizaLaser**. El repositorio `NadirTomas/CotizaLaser` es obsoleto y no debe usarse como referencia.
+
 ## 1. Estado actual
 
-Proyecto en desarrollo activo. Backend funcional con lógica de negocio implementada, deployado en Railway con PostgreSQL. Sistema de migraciones Alembic en producción, autenticación JWT en todos los endpoints de modificación, auditoría de creador en todas las entidades. Frontend completo con integración a la API, paginación y búsqueda en todos los listados, todas las páginas principales funcionales.
+Sistema en desarrollo activo, multiempresa, deployado en Railway con PostgreSQL. Cubre el flujo completo: cliente → material/máquina → pieza DXF → cotización → aceptación → reserva de stock → confirmación de corte → retazo, con auditoría de eventos, PDF on-demand, y aislamiento de datos por empresa verificado endpoint por endpoint.
 
-**Deploy Railway:**
-- Frontend: https://cotizalaser.up.railway.app
-- Backend: https://backend-production-3f21c.up.railway.app
-- Para crear el primer usuario: usar `/docs` → `POST /auth/register`
+**Deploy Railway** (proyecto `Tesis_Cotizador`, 3 servicios en el mismo environment `production`):
+- Frontend: `frontend-production-ebde2.up.railway.app`
+- Backend: `tesiscotizador-production.up.railway.app`
+- Postgres: red privada (`postgres.railway.internal`), sin proxy TCP público por defecto
+- Para crear el primer usuario: `POST /auth/register`, luego crear una empresa con `POST /companies/` (el creador queda como OWNER) o vincularse a una existente por invitación
+
+**Conocido y con bug abierto (ver §7):** `DELETE /quotations/{id}` falla siempre en Postgres para cotizaciones en `draft` por una foreign key sin cascada hacia `quotation_events`. El frontend no expone ningún control que dispare este endpoint hoy, así que no genera incidentes activos, pero está roto si se lo invoca directamente.
 
 ---
 
 ## 2. Tecnologías
 
 ### Backend
-| Tecnología | Versión / Notas |
+| Tecnología | Notas |
 |---|---|
-| Python | — |
-| FastAPI | Framework HTTP |
+| Python | FastAPI |
 | SQLAlchemy | ORM |
-| PostgreSQL | Base de datos (Railway) |
-| Pydantic / pydantic-settings | Validación y configuración |
+| PostgreSQL | Base de datos de producción (Railway, imagen `postgres-ssl:18`). SQLite solo como fallback local |
+| Alembic | Migraciones — corre `alembic upgrade head` en cada arranque del backend en Railway |
+| Pydantic v2 / pydantic-settings | Validación y configuración |
+| Shapely | Geometría real (polígonos con huecos, colocación, retazos) para el motor de stock |
 | ezdxf | Análisis de archivos DXF |
-| ReportLab | Generación de PDFs |
-| Uvicorn | Servidor ASGI |
-| PyJWT[crypto] | JWT (reemplaza python-jose por mantenimiento activo y sin CVEs) |
-| bcrypt | Hash seguro de passwords (directo, sin passlib) |
-| email-validator | Validación de emails para Pydantic |
+| ReportLab | Generación de PDF |
+| PyJWT + bcrypt | Auth JWT HS256 (tokens de 7 días, sin revocación) + hash de passwords (cost 12) |
+| slowapi | Rate limiting |
 | psycopg2-binary | Driver PostgreSQL |
-| pytest + httpx | Testing |
+| pytest + httpx | Testing (corre contra SQLite; ver nota de concurrencia en §9) |
 
 ### Frontend
 | Tecnología | Versión |
 |---|---|
-| React | 19.2.0 |
-| TypeScript | — |
-| Vite | Bundler |
-| React Router | v7 |
-| Material UI (MUI) | v7 |
-| Emotion | CSS-in-JS |
+| React | 19.2 |
+| TypeScript | 5.9 |
+| Vite | 7 |
+| React Router | 7 |
+| Material UI (MUI) | 7 |
+| Vitest + React Testing Library | Testing (cobertura mínima, ver §8) |
 
 ---
 
-## 3. Estructura
+## 3. Estructura real
 
 ```
-CotizadorLaser/
+Tesis_Cotizador/
 ├── CLAUDE.md
 ├── PROJECT_CONTEXT.md
 ├── backend/
 │   ├── alembic/
-│   │   ├── env.py                      ← Configurado para importar modelos y DATABASE_URL
+│   │   ├── env.py
 │   │   ├── alembic.ini
-│   │   ├── versions/
-│   │   │   ├── f20b2e6e7788_initial_schema.py      ← File storage migration (dxf_path → dxf_data)
-│   │   │   └── ad4a02af2953_add_audit_fields.py    ← Audit fields (created_at, updated_at, created_by_id)
-│   │   └── script.py.mako
+│   │   └── versions/            ← 12 migraciones, un solo head (d4e5f6a8b9c0), cadena lineal.
+│   │                               Nota: las fechas de archivo NO reflejan el orden real de
+│   │                               aplicación — el historial pre-multiempresa fue colapsado
+│   │                               detrás de un baseline_schema fechado en agosto. Alembic
+│   │                               ordena por revision/down_revision, no por fecha; esto no
+│   │                               afecta el funcionamiento, solo puede confundir al leer.
 │   ├── app/
 │   │   ├── api/v1/
 │   │   │   ├── routes_health.py
 │   │   │   ├── routes_auth.py
-│   │   │   ├── routes_materials.py
+│   │   │   ├── routes_companies.py       ← empresas, miembros, roles, logo
+│   │   │   ├── routes_admin.py           ← alta de empresa gateada por X-Admin-Secret
 │   │   │   ├── routes_clients.py
+│   │   │   ├── routes_materials.py
 │   │   │   ├── routes_machine_configs.py
 │   │   │   ├── routes_pieces.py
 │   │   │   ├── routes_quotations.py
-│   │   │   └── routes_quotation_items.py
-│   │   ├── core/
-│   │   │   └── config.py
-│   │   ├── db/
-│   │   │   ├── session.py
-│   │   │   └── init_db.py
+│   │   │   ├── routes_quotation_items.py
+│   │   │   ├── routes_nesting.py         ← nesting de planificación (bin-packing rectangular)
+│   │   │   └── routes_stock.py           ← stock físico real: chapas, retazos, reservas, movimientos
+│   │   ├── core/config.py
+│   │   ├── db/{session,init_db}.py
 │   │   ├── models/
-│   │   │   ├── material.py
-│   │   │   ├── client.py
-│   │   │   ├── piece.py
-│   │   │   ├── machine_config.py
-│   │   │   ├── quotation.py
-│   │   │   ├── quotation_item.py
-│   │   │   ├── company.py
-│   │   │   └── user.py
-│   │   ├── schemas/
-│   │   │   ├── material.py
-│   │   │   ├── client.py
-│   │   │   ├── piece.py
-│   │   │   ├── machine_config.py
-│   │   │   ├── quotation.py
-│   │   │   ├── quotation_item.py
-│   │   │   └── auth.py
+│   │   │   ├── user.py, company.py, company_member.py
+│   │   │   ├── client.py, material.py, machine_config.py, piece.py
+│   │   │   ├── quotation.py, quotation_item.py, quotation_event.py
+│   │   │   └── stock_sheet.py, stock_reservation.py, stock_movement.py
+│   │   ├── schemas/                       ← un archivo por modelo, mismo listado que arriba
 │   │   ├── services/
-│   │   │   ├── dxf_analysis.py
+│   │   │   ├── auth.py, company_guard.py
+│   │   │   ├── dxf_analysis.py           ← analyze_dxf / get_bounding_box / extract_piece_polygon
+│   │   │   ├── dxf_preview.py
 │   │   │   ├── quotation_calculator.py
+│   │   │   ├── quotation_events.py
 │   │   │   ├── pdf_generator.py
-│   │   │   └── auth.py
-│   │   ├── main.py
-│   │   └── __init__.py
-│   ├── data/
-│   │   └── dxf/
+│   │   │   ├── nesting.py                ← MaxRects-BSSF, bounding box, no persiste
+│   │   │   ├── geometry.py
+│   │   │   ├── stock_placement.py        ← find_placement / occupied_geometry_at (polígono real)
+│   │   │   ├── stock_recommendation.py
+│   │   │   ├── stock_cut.py              ← compute_remnants
+│   │   │   └── stock_reservations.py     ← release_reservation
+│   │   └── main.py
+│   ├── tests/                             ← 79 tests, 13 archivos (detalle en §8)
 │   ├── requirements.txt
-│   ├── Procfile                        ← Incluye 'alembic upgrade head' antes de uvicorn
-│   ├── railway.toml                    ← Incluye 'alembic upgrade head' en startCommand
-│   └── .env.example
+│   └── railway.toml                       ← startCommand: alembic upgrade head && uvicorn ...
 └── frontend/
-    ├── src/
-    │   ├── pages/
-    │   │   ├── HomePage.tsx
-    │   │   ├── LoginPage.tsx
-    │   │   ├── MaterialsPage.tsx         ← con búsqueda + paginación
-    │   │   ├── ClientsPage.tsx           ← con búsqueda + paginación
-    │   │   ├── PiecesPage.tsx            ← con búsqueda + paginación
-    │   │   ├── QuotationsPage.tsx        ← con filtros + paginación
-    │   │   ├── QuotationDetailPage.tsx
-    │   │   ├── MachineConfigsPage.tsx    ← con paginación
-    │   │   └── QuoteFromCadWizardPage.tsx
-    │   ├── hooks/
-    │   │   └── usePaginatedList.ts       ← Hook reutilizable para paginación client-side
-    │   ├── layouts/
-    │   │   └── MainLayout.tsx           ← sidebar permanente + botón cerrar sesión
-    │   ├── theme/
-    │   │   └── theme.ts                 ← tema MUI dark personalizado
-    │   ├── context/
-    │   │   └── AuthContext.tsx          ← token en localStorage, login/logout global
-    │   ├── services/
-    │   │   ├── auth.ts
-    │   │   ├── clients.ts
-    │   │   ├── pieces.ts
-    │   │   ├── materials.ts
-    │   │   ├── quotations.ts
-    │   │   └── machineConfigs.ts
-    │   ├── config/
-    │   │   └── api.ts
-    │   ├── App.tsx                      ← incluye ProtectedRoute
-    │   ├── index.css                    ← fuentes Google + scrollbar custom
-    │   └── main.tsx                     ← ThemeProvider + CssBaseline + AuthProvider
-    ├── package.json
-    └── .env.example
+    └── src/
+        ├── pages/                          ← 16 páginas, todas lazy-loaded
+        │   ├── LoginPage, SelectCompanyPage, CreateCompanyPage, CompanyPage, EmployeesPage
+        │   ├── ClientsPage, MaterialsPage, MachineConfigsPage, PiecesPage
+        │   ├── QuotationsPage, QuotationDetailPage, QuoteFromCadWizardPage
+        │   ├── NestingPage, StockPage, StockDetailPage
+        │   └── HomePage
+        ├── context/AuthContext.tsx          ← token/company en localStorage, refresh silencioso 6h
+        ├── layouts/MainLayout.tsx            ← drawer permanente (desktop) / temporal (mobile)
+        ├── services/                         ← un archivo por dominio, ver §10 sobre contratos
+        │   ├── apiClient.ts, auth.ts, companies.ts
+        │   ├── clients.ts, materials.ts, machineConfigs.ts, pieces.ts
+        │   ├── quotations.ts, nesting.ts, stock.ts
+        │   └── errorReporting.ts             ← observabilidad, manda errores no capturados al backend
+        ├── hooks/usePaginatedList.ts          ← paginación 100% client-side, usada en todos los listados
+        ├── theme/theme.ts                     ← MUI dark industrial, acento naranja #FF6B00
+        └── App.tsx                            ← ProtectedRoute → RequireCompany → MainLayout;
+                                                   RequireOwner adicional en /employees
 ```
 
 ---
@@ -152,215 +137,118 @@ CotizadorLaser/
 ## 4. Qué ya funciona
 
 ### Backend
-- [x] CRUD completo: Materiales, Clientes, Piezas, MachineConfigs
-- [x] CRUD completo: Presupuestos (Quotations) e Ítems de presupuesto
-- [x] Carga y análisis de archivos DXF (`dxf_analysis.py`)
-  - Calcula longitud de corte y área desde LINEs, LWPOLYLINEs y CIRCLEs
-  - Fallback de lectura de texto si ezdxf falla
-- [x] Motor de cálculo de costos (`quotation_calculator.py`)
-  - Costo de material: `(area_pieza / area_chapa) * costo_chapa`
-  - Costo de máquina: `(tiempo_corte + setup_time) / 60 * costo_hora`
-  - Costo de mano de obra: 30% del costo de máquina (hardcodeado)
-  - Precio unitario: `(costo_base / cantidad) * (1 + margen%)`
-  - Actualización automática de totales del presupuesto
-- [x] Generación de PDF (`pdf_generator.py`) con ReportLab
-  - Encabezado, datos de cliente, tabla de ítems, totales ARS/USD, validez
-- [x] Modelo `CompanyConfig` definido (sin endpoints expuestos aún)
-- [x] Health check endpoint
-- [x] Configuración vía variables de entorno (COTIZALASER_ prefix y valores default)
-  - MAX_DXF_SIZE (default 10MB), MAX_LOGO_SIZE (default 5MB), LABOR_COST_PERCENT (default 30%)
-- [x] Base de datos PostgreSQL en Railway, inicializada con `create_all` al arrancar
-- [x] Logging estructurado en JSON para todos los eventos críticos (auth, uploads)
-- [x] Rate limiting en endpoints sensibles (auth 10/min, uploads 5/min)
-- [x] Autenticación JWT: `POST /auth/register` y `POST /auth/login` (bcrypt + PyJWT)
-  - Emails normalizados a minúsculas para evitar duplicados y case-insensitivity
-  - Bcrypt directo sin passlib (conflictos en Railway resueltos)
-  - Todos los endpoints POST/PUT/DELETE requieren token JWT válido
-  - GET endpoints públicos (sin autenticación)
-- [x] Modelo `User` (email, hashed_password, is_active)
-- [x] Middleware para confiar en `X-Forwarded-Proto` de Railway (fix HTTPS proxy)
-- [x] Sistema de migraciones Alembic
-  - Migraciones automáticas al arrancar (`alembic upgrade head` en startCommand)
-  - Inicial migration: captura schema actual (BYTEA para files)
-  - Audit migration: agrega `created_at`, `updated_at`, `created_by_id`
-  - Versionamiento de schema seguro para producción
-- [x] Auditoría en todas las entidades
-  - Campos: `created_at`, `updated_at` (DateTime con servidor defaults)
-  - Campo `created_by_id` (FK a users.id) en: Client, Material, Piece, MachineConfig, Quotation, QuotationItem, User
-  - Autenticación: `get_current_user()` devuelve `user_id` (int), todos los POST/PUT guardan `created_by_id`
-  - Todos los campos son nullable para compatibilidad con registros existentes
+- Auth JWT (register/login/refresh), bcrypt cost 12, tokens de 7 días
+- Multiempresa completa: `Company`, `CompanyMember` (roles `owner`/`employee`, serializados en minúscula), aislamiento por `X-Company-Id` validado vía `get_current_company`/`require_owner` — **verificado endpoint por endpoint sin fugas cross-tenant**, incluyendo endpoints con múltiples IDs cruzados en un mismo payload (reservar stock, agregar ítems de cotización)
+- CRUD completo: Clientes, Materiales, MachineConfig, Piezas, Cotizaciones, Ítems de cotización
+- Carga y análisis de DXF: longitud de corte + área (agujeros correctamente restados, círculos correctamente contados — corregido 2026-08-25, ver §11)
+- Motor de costeo (`quotation_calculator.py`, fórmula completa en §6)
+- Generación de PDF on-demand (`pdf_generator.py`, ReportLab) — no se persiste, `Quotation.pdf_data` existe como columna pero nada la escribe
+- Ciclo de vida de cotización con máquina de estados (`draft → sent → accepted → cancelled`, más `accepted → cancelled`) y log de auditoría append-only (`QuotationEvent`)
+- Nesting de planificación: bin-packing rectangular (MaxRects-BSSF) sobre bounding box, informativo, no persiste ni reserva nada
+- Stock físico real: `StockSheet` (FULL_SHEET/REMNANT), `StockReservation`, `StockMovement`; flujo completo crear → recomendar → reservar → confirmar corte → generar retazo, con geometría real (Shapely, polígonos con huecos), idempotencia verificada bajo concurrencia real de Postgres (UPDATE condicional + índice único parcial)
+- Rate limiting (`slowapi`) en auth, uploads, cotizaciones, stock, admin
+- Endpoint de onboarding de empresas gateado por `X-Admin-Secret`, además del alta autoservicio (`POST /companies/`)
+- Observabilidad: el frontend reporta errores no capturados a `POST /client-errors`
 
 ### Frontend
-- [x] Rutas configuradas (`/`, `/pieces`, `/clients`, `/quotations`, `/quotations/:id`, `/materials`, `/quotes/new-from-cad`, `/login`)
-- [x] Paginación client-side en todos los listados (usePaginatedList hook)
-- [x] Búsqueda en: Clients, Materials, Pieces, Quotations
-- [x] TablePagination en todas las páginas (10/20/50 rows per page)
-- [x] Sistema de diseño: tema MUI dark en `theme/theme.ts` (naranja #FF6B00, fondo #0A0B0E, fuentes Barlow Condensed + DM Sans + JetBrains Mono)
-- [x] Layout con sidebar permanente (`MainLayout.tsx`) — reemplaza AppBar; incluye nav items con indicador activo y CTA "Nueva Cotización"
-- [x] `HomePage` rediseñada — CTA card destacada + 4 tarjetas de navegación con acento por sección
-- [x] `LoginPage` mejorada — logo destacado con animación pulse, efectos visuales (orbs decorativos), mejor jerarquía, animaciones suaves, responsiva mobile-first
-- [x] `config/api.ts` con `API_BASE_URL` configurable por env
+- Rutas protegidas con selección de empresa activa persistida en `localStorage`
+- Las 16 páginas listadas en §3, todas consumiendo la API real
+- Layout responsive (drawer permanente en desktop, temporal con hamburguesa en mobile)
+- Paginación y búsqueda client-side en todos los listados
+- Descarga de PDF autenticada (blob manual, porque `<img>`/`window.open` no mandan headers de auth)
+- Reserva/confirmación de corte de stock desde `QuotationDetailPage`, con reconstrucción de estado por ítem al recargar
 
 ---
 
-## 5. Qué falta
+## 5. Qué falta / gaps confirmados
 
 ### Backend
-- [x] ✓ Migraciones con Alembic (inicial + audit fields, versionamiento production-ready)
-  - Ejecutadas automáticamente en Railway con `alembic upgrade head`
-  - Manejo seguro de schema en PostgreSQL sin perder datos
-- [x] ✓ Endpoints para `CompanyConfig` (GET + PUT expuestos)
-- [x] ✓ `labor_percent` configurable por material en `MachineConfig`
-- [x] ✓ Auditoría completa (created_by_id + timestamps en todas las entidades)
-- [x] ✓ Filtros y búsqueda en listados (implementados client-side en frontend)
-- [x] ✓ Autenticación JWT completa (login/logout, ProtectedRoute, token en requests)
-- [x] ✓ Todos los endpoints POST/PUT/DELETE requieren autenticación
-- [x] ✓ Logging estructurado JSON para Railway
-- [ ] Tests más completos (unitarios para servicios de cálculo)
-- [ ] Paginación en endpoints GET (para futura escalabilidad; hoy client-side es suficiente)
+- [ ] Fix del bug crítico: cascade de `quotation_events` al borrar una cotización (§7)
+- [ ] Manejo del retorno de `release_reservation` al cancelar una cotización con reservas en carrera con un `confirm-cut` (§7)
+- [ ] Reintento ante colisión de `_next_number()` de cotizaciones (mismo patrón que `_next_stock_code`)
+- [ ] Índice único parcial para "una `MachineConfig` activa por material" (hoy solo protegido en código de aplicación)
+- [ ] Tests unitarios de `dxf_analysis.py` y `quotation_calculator.py` (cero hoy)
+- [ ] Tests contra un motor que enforce foreign keys reales (Postgres, o SQLite con `PRAGMA foreign_keys=ON`) — el bug crítico de §7 era invisible en el test suite actual por esta razón
+- [ ] CI/CD — no hay `.github/workflows/`, el auto-deploy de Railway no corre tests antes de producción
 
 ### Frontend
-- [x] Integración con la API del backend — todas las páginas consumen endpoints reales
-- [x] Servicios de API creados (`services/materials.ts`, `clients.ts`, `pieces.ts`, `machineConfigs.ts`, `quotations.ts`)
-- [x] `MaterialsPage` — CRUD funcional (tabla + modal crear/editar + confirmar eliminación) + búsqueda + paginación
-- [x] `ClientsPage` — CRUD funcional (tabla + modal crear/editar + confirmar eliminación) + búsqueda + paginación
-- [x] `PiecesPage` — funcional: tabla real, importar DXF (create → upload), nueva pieza manual, editar, eliminar + búsqueda + paginación
-- [x] `QuotationsPage` — lista con cliente, fecha, estado, total ARS, acciones (ver detalle, PDF) + filtros + paginación
-- [x] `QuoteFromCadWizardPage` — wizard 3 pasos: datos → agregar piezas con cálculo automático → resumen + PDF
-- [x] `QuotationDetailPage` — nueva página `/quotations/:id`: ver ítems con desglose de costos, agregar ítems, descargar PDF
-- [x] Formularios de creación/edición con validación básica
-- [x] Manejo de errores y estados de carga en todas las páginas
-- [x] Notificaciones / feedback al usuario (toasts con Snackbar)
-- [x] Descarga de PDF desde frontend (window.open al endpoint del backend)
-- [x] `MachineConfigsPage` — CRUD funcional en `/machine-configs`, con `labor_percent` configurable por material + paginación
-- [x] `CompanyPage` — página `/company` para datos del taller (nombre, razón social, CUIT, contacto)
-- [x] `CompanyConfig` — endpoints GET + PUT (singleton), usa los datos en el PDF
-- [x] **Logo de empresa** — `POST /company/logo` sube y guarda en PostgreSQL (BYTEA), `GET /company/logo` sirve imagen
-  - Formatos: PNG, JPG, SVG, WEBP (máximo 5MB, configurable)
-  - Persistente en Railway (no se pierde en redeploy)
-- [x] **DXF en DB** — `POST /pieces/{id}/upload-dxf` guarda archivo DXF y PNG preview en PostgreSQL (BYTEA)
-  - Máximo 10MB por archivo DXF (configurable)
-  - Persistente en Railway
-- [x] **Preview de piezas DXF** — `GET /pieces/{id}/preview` sirve PNG desde DB
-- [x] **PDFs de cotización** — `GET /quotations/{id}/pdf` genera en memoria y sirve sin guardar en filesystem
-  - Reutiliza generator existente con tempfile
-  - Sin ocupar espacio en DB
-- [x] **Paginación y búsqueda** — Hook `usePaginatedList` reutilizable, busca en: clients, materials, pieces, quotations
+- [ ] Exponer `kerf_mm`/`minimum_spacing_mm` en `MachineConfigsPage` (el backend los usa activamente, el tipo TS ni siquiera los declara)
+- [ ] Exponer `minimum_remnant_area_mm2`/`width_mm`/`height_mm` en `CompanyPage`
+- [ ] Editar ítems de cotización ya creados (`PUT /quotation-items/{id}` existe y funciona en el backend; el frontend solo puede borrar y recrear)
+- [ ] Paginación server-side si el volumen crece más allá de lo cómodo en memoria
+- [ ] Extraer el formulario de "agregar ítem" compartido entre el wizard y el detalle de cotización (hoy duplicado)
+
+### Decisiones de arquitectura sin resolver (no son bugs)
+- Separación entre `nesting.py` (planificación rectangular, no persiste) y `stock_placement.py`/`stock_recommendation.py`/`stock_cut.py` (motor real de stock, geometría con huecos, sí persiste) — documentar como decisión consciente o unificar
+- Trazabilidad de corte: hoy una `StockReservation` cubre un ítem completo (independiente de su `quantity`), no cada unidad física cortada
 
 ---
 
-## 6. Flujo actual (end-to-end esperado)
+## 6. Motor de costeo — fórmula real (`quotation_calculator.py`)
 
 ```
-1. Configuración previa (admin)
-   ├── Crear Material (nombre, espesor, tamaño chapa, costo ARS)
-   └── Crear MachineConfig por material (velocidad mm/min, costo/hora, setup)
-
-2. Crear Cliente
-   └── Nombre, CUIT, contacto, dirección
-
-3. Cargar Pieza
-   ├── Subir archivo DXF → POST /pieces/{id}/upload-dxf
-   └── Backend extrae: longitud_corte_mm, area_mm2
-
-4. Crear Presupuesto (Quotation)
-   ├── Seleccionar cliente
-   ├── Definir moneda, tipo de cambio (se guarda en el momento)
-   └── Fechas de emisión y vencimiento
-
-5. Agregar Ítems al Presupuesto
-   ├── Seleccionar pieza, material, cantidad, margen %
-   └── Backend calcula automáticamente:
-       ├── costo_material_ars
-       ├── costo_machine_ars
-       ├── costo_labor_ars  (30% de máquina — pendiente de hacer configurable)
-       ├── unit_price_ars
-       └── total_price_ars
-       → Actualiza total del presupuesto
-
-6. Generar PDF
-   └── GET /quotations/{id}/pdf → descarga PDF con todos los datos
+costo_material = (piece.area_mm2 / (material.sheet_width_mm * material.sheet_height_mm)) * material.sheet_cost_ars * quantity
+tiempo_por_pieza_h = (piece.length_cut_mm / machine_config.cut_speed_mm_min + machine_config.setup_time_min) / 60
+costo_maquina = tiempo_por_pieza_h * machine_config.machine_cost_per_hour_ars * quantity
+costo_labor = costo_maquina * (machine_config.labor_percent / 100)
+unit_price = ((costo_material + costo_maquina + costo_labor) / quantity) * (1 + margin_percent / 100)
+total_price = unit_price * quantity
 ```
+
+Nota: `setup_time_min` se cobra **por unidad** (dentro del tiempo por pieza, multiplicado por `quantity`), no una sola vez por corrida — confirmar si es la regla de negocio deseada antes de asumir que es un bug.
+
+`quotation.total_ars` se recalcula sumando **todos** los ítems cada vez que se crea/edita uno; si hay `exchange_rate` seteado, `total_usd = total_ars / exchange_rate`.
+
+---
+
+## 7. Bugs conocidos abiertos (severidad, ver informe de auditoría completo para detalle)
+
+| # | Severidad | Descripción | Archivo |
+|---|---|---|---|
+| 1 | **CRÍTICO** | `DELETE /quotations/{id}` falla siempre en Postgres en estado `draft` — FK de `quotation_events` sin cascade | `routes_quotations.py:193-212`, `models/quotation.py` |
+| 2 | **ALTO** | Cancelar cotización en carrera con `confirm-cut` de una reserva propia deja estado inconsistente sin registro | `routes_quotations.py:242-249` |
+| 3 | **ALTO** | UI no expone `kerf_mm`/`minimum_spacing_mm` | `MachineConfigsPage.tsx`, `machineConfigs.ts` |
+| 4 | **ALTO** | UI no expone `minimum_remnant_*` de empresa | `companies.ts`, `CompanyPage.tsx` |
+| 5 | **ALTO** | No se puede editar un ítem de cotización desde la UI (endpoint backend sí existe) | `quotations.ts` |
+| 6 | MEDIO | `_next_number()` sin reintento ante colisión concurrente | `routes_quotations.py:77-79` |
+| 7 | MEDIO | Reactivación de `MachineConfig` sin lock, invariante "una activa" puede romperse bajo concurrencia | `routes_machine_configs.py:100-105` |
+
+---
+
+## 8. Tests — estado real
+
+**Backend**: 79 tests en 13 archivos. Fuertemente concentrados en stock (42, el mejor cubierto) y control de acceso/multiempresa (16). **Cero tests** de `dxf_analysis.py`, `quotation_calculator.py` aislado, `pdf_generator.py`, o del endpoint `DELETE /quotations/{id}` (que resultó estar roto — ver §7.1). Los tests corren contra SQLite, que no enforce foreign keys por defecto: cualquier bug que dependa de ese enforcement es invisible en el suite actual.
+
+**Frontend**: 4 archivos (`AuthContext`, `LoginPage`, `apiClient`, `usePaginatedList`) — sin cobertura de ninguna página de dominio.
+
+**Importante**: que los tests existentes pasen no implica que el sistema esté libre de bugs de este calibre — el bug crítico de §7.1 coexistía con un suite "verde".
+
+---
+
+## 9. Concurrencia — verificado contra el comportamiento real de Postgres (no solo SQLite)
+
+- **Reserva de stock** y **confirmación de corte**: protegidos correctamente en dos capas (UPDATE condicional con rowcount + índice único parcial). Verificado que el perdedor de una carrera real recibe 409, no un estado corrupto.
+- **Cancelación de cotización vs. confirmación de corte concurrente**: ventana de inconsistencia real, ver bug §7.2.
+- **Numeración de cotizaciones**: sin protección, ver bug §7.6.
+- **Reactivación de `MachineConfig`**: sin protección, ver bug §7.7.
+
+---
+
+## 10. Contratos frontend ↔ backend — estado real
+
+Verificado campo por campo (Pydantic vs. TypeScript) para Materials, MachineConfigs, Pieces, Quotations, QuotationItems, Stock, StockRecommendation, StockReservation, Company, CompanyMember. La mayoría está perfectamente alineada (Stock es el módulo mejor tipado, con unions literales exactos). Discrepancias reales encontradas: `kerf_mm`/`minimum_spacing_mm` ausentes en los tipos TS de MachineConfig, `minimum_remnant_*` ausentes en los tipos TS de Company, y `PUT /quotation-items/{id}` sin consumidor en frontend — las tres ya listadas en §7 como bugs de producto, no de tipos.
+
+---
+
+## 11. Historial reciente relevante
+
+- **2026-08-25**: corregido `analyze_dxf` (sumaba área de agujeros en vez de restarla, círculos no contaban para área) — desalineaba el costo de material cotizado contra el área real descontada del stock. Backfill aplicado a las piezas existentes en producción; ninguna cotización ya emitida fue modificada. Auditoría completa del sistema realizada el mismo día (este documento es su resultado).
+- **2026-08-19 al 21**: multiempresa, nesting real (bin-packing), stock físico + retazos + reservas + movimientos, auditoría de cotizaciones (`QuotationEvent`), refresh de sesión silencioso, observabilidad, layout responsive — todo el estado descrito en este documento.
 
 ---
 
 ## Notas y pendientes sin resolver
 
-### Problemas resueltos en Railway
-- ✓ **Mixed Content / HTTPS**: Frontend en HTTPS redirigía al backend en HTTP
-  - Solución: Middleware `TrustProxyHeadersMiddleware` que lee `X-Forwarded-Proto` header
-- ✓ **CORS**: FRONTEND_URL variable seteada para permitir requests desde dominio de producción
-- ✓ **Bcrypt en Railway**: `passlib` tenía conflictos con `bcrypt` moderno
-  - Solución: Usar `bcrypt` directamente
-- ✓ **Persistencia de archivos**: Logos/DXF/PDFs se guardaban en filesystem efímero (se pierden en redeploy)
-  - Solución: Guardar en PostgreSQL como BYTEA (logos en CompanyConfig, DXF/previews en Piece)
-  - PDFs: Generados on-demand en memoria (no necesitan persistencia)
-
-### Cambios de modelo recientes (Railway-ready)
-- **Piece**: dxf_path/preview_path → dxf_data (BYTEA), preview_data (BYTEA), dxf_filename
-- **CompanyConfig**: logo_path → logo_data (BYTEA), logo_filename
-- **Quotation**: agregó pdf_data (BYTEA, opcional, no usado hoy)
-
-### Cambios recientes implementados (7 de abril 2026)
-- ✓ **Alembic y migraciones**: Implemented two migrations
-  - `f20b2e6e7788_initial_schema`: Migra file storage (dxf_path → dxf_data, etc.)
-  - `ad4a02af2953_add_audit_fields`: Agrega created_at, updated_at, created_by_id
-  - Configurado en railway.toml/Procfile para ejecutar automáticamente
-- ✓ **Paginación client-side**: Hook usePaginatedList en todos los listados (10/20/50 rows)
-- ✓ **Búsqueda/Filtros**: Implementados en ClientsPage, MaterialsPage, PiecesPage, QuotationsPage
-- ✓ **Auditoría**: Todos los modelos tienen created_by_id, get_current_user devuelve int (user_id)
-
-### Cambios recientes de seguridad
-- ✓ **Autenticación JWT en endpoints**: POST/PUT/DELETE requieren bearer token (implementado en routes_pieces, routes_quotations)
-- ✓ **SECRET_KEY obligatorio**: Ahora sin default inseguro, requiere variable de entorno en producción
-
-### Pendientes de seguridad y arquitectura
-
-**URGENTES (antes de producción):**
-1. ✓ **Proteger todos los endpoints de modificación**
-   - ✓ Todos los endpoints POST/PUT/DELETE en todas las rutas requieren JWT
-   - ✓ Implementado en: routes_clients, routes_materials, routes_machine_configs, routes_company, routes_quotation_items, routes_nesting
-   - Patrón usado: `current_user: str = Depends(get_current_user)` en todas las mutaciones
-
-2. **Secrets management**
-   - ✓ SECRET_KEY requiere env var (sin defaults inseguros)
-   - ✓ Verificado y configurado en Railway Variables
-
-3. ✓ **Logging estructurado**
-   - ✓ Logs JSON de: auth (login/register attempts), DXF uploads, logo uploads
-   - ✓ Formato JSON con timestamp, level, logger, message, extras (user, file_size, etc)
-   - ✓ Supprimidos logs verbosos de SQLAlchemy y uvicorn
-   - ✓ Configurado al startup de la app
-
-4. ✓ **Rate limiting**
-   - ✓ Implementado con `slowapi`
-   - ✓ Auth endpoints: 10 requests/min por IP (brute force protection)
-   - ✓ DXF upload: 5 requests/min por IP
-   - ✓ Logo upload: 5 requests/min por IP
-
-**Mejoras de arquitectura (post-MVP):**
-5. ✓ **Configuración dinámica**
-   - ✓ MAX_DXF_SIZE, MAX_LOGO_SIZE → env vars (defaults 10MB, 5MB)
-   - ✓ LABOR_COST_PERCENT → env var (default 30%, pero MachineConfig permite override por material)
-   - ✓ Otros defaults configurables via Settings
-
-6. **Validaciones robustas**
-   - Checks de integridad referencial
-   - Prevenir cotizaciones sin cliente válido
-   - Consistencia en PUT/POST
-
-7. **Error handling**
-   - Errores específicos en lugar de 500 genérico
-   - Stack traces en logs pero respuestas limpias al cliente
-
-8. ✓ **Sistema de migraciones con Alembic**
-   - ✓ Alembic inicializado y configurado para PostgreSQL
-   - ✓ Migraciones automáticas al arrancar (startCommand en Railway/Procfile)
-   - ✓ Schema versionado y seguro para cambios en producción
-   - ✓ init_db.py solo usa `create_all` en SQLite local (dev), Alembic maneja PostgreSQL
-
-9. ✓ **Auditoría completa**
-   - ✓ `created_by_id` (int FK a users.id) en todas las entidades
-   - ✓ `created_at` y `updated_at` en todos los modelos (server defaults)
-   - ✓ GET_CURRENT_USER devuelve user_id para rastrear creador
-   - ✓ Todos los POST/PUT endpoints guardan quién hizo la acción
+- README.md está prácticamente vacío (placeholder autogenerado) — no se usa como documentación real, este archivo es la fuente canónica.
+- CLAUDE.md sigue vigente en sus principios de arquitectura/trabajo y no requiere reescritura.
+- Ningún secreto ni credencial fue encontrado en el historial completo de git (`git log --all`) — el único script con credenciales de admin en texto plano (`test_railway.py`) nunca llegó a commitearse, solo existe localmente sin trackear.
