@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -14,6 +15,8 @@ from app.services.lookups import get_active_material
 
 
 router = APIRouter(prefix="/machine-configs", tags=["machine-configs"])
+
+_DUPLICATE_ACTIVE_CONFIG_DETAIL = "Ya existe una configuración de máquina activa para este material"
 
 
 def _has_active_config(db: Session, material_id: int, company_id: int, exclude_id: int | None = None) -> bool:
@@ -37,15 +40,23 @@ def create_machine_config(
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
     if _has_active_config(db, payload.material_id, member.company_id):
-        raise HTTPException(
-            status_code=400,
-            detail="Ya existe una configuración de máquina activa para este material",
-        )
+        raise HTTPException(status_code=400, detail=_DUPLICATE_ACTIVE_CONFIG_DETAIL)
     config = MachineConfig(**payload.dict())
     config.company_id = member.company_id
     config.created_by_id = member.user_id
     db.add(config)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # El chequeo de arriba es lectura-luego-escritura, sin lock: una
+        # segunda request casi simultánea pudo pasar la misma validación
+        # antes de que esta comiteara. El índice único parcial
+        # (uq_machine_configs_active_per_material) es la red de seguridad
+        # real — sin este catch, la que pierde la carrera vería un 500
+        # genérico en vez del mismo error de dominio que ya devuelve el
+        # chequeo de arriba.
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_DUPLICATE_ACTIVE_CONFIG_DETAIL)
     db.refresh(config)
     return config
 
@@ -99,13 +110,17 @@ def update_machine_config(
     update_data = payload.dict(exclude_unset=True)
     if update_data.get("active") is True and not config.active:
         if _has_active_config(db, config.material_id, member.company_id, exclude_id=config.id):
-            raise HTTPException(
-                status_code=400,
-                detail="Ya existe una configuración de máquina activa para este material",
-            )
+            raise HTTPException(status_code=400, detail=_DUPLICATE_ACTIVE_CONFIG_DETAIL)
     for key, value in update_data.items():
         setattr(config, key, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Misma carrera que en create_machine_config: dos reactivaciones
+        # del mismo material casi simultáneas pueden pasar ambas el
+        # chequeo de arriba antes de que ninguna comitee.
+        db.rollback()
+        raise HTTPException(status_code=400, detail=_DUPLICATE_ACTIVE_CONFIG_DETAIL)
     db.refresh(config)
     return config
 

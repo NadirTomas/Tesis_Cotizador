@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, func, text
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -6,6 +6,19 @@ from app.db.session import Base
 
 class MachineConfig(Base):
     __tablename__ = "machine_configs"
+    __table_args__ = (
+        # A lo sumo una config activa por material — ver migración
+        # a8b9c0d1e2f3. Declarado también acá (no solo en la migración)
+        # para que create_all() la incluya en la DB de tests/dev SQLite,
+        # que no pasa por Alembic.
+        Index(
+            "uq_machine_configs_active_per_material",
+            "company_id", "material_id",
+            unique=True,
+            sqlite_where=text("active = 1"),
+            postgresql_where=text("active = true"),
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     material_id = Column(Integer, ForeignKey("materials.id"), nullable=False)

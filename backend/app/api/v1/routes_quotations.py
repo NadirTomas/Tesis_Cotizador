@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -87,16 +88,31 @@ def create_quotation(
     client = _get_active_client(db, payload.client_id, member.company_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    quotation = Quotation(
-        **payload.dict(),
-        number=_next_number(db, member.company_id),
-        company_id=member.company_id,
-        total_ars=0.0,
-        total_usd=0.0,
-    )
-    quotation.created_by_id = member.user_id
-    db.add(quotation)
-    db.flush()
+
+    # Reintento ante colisión de número bajo creaciones concurrentes en la
+    # misma empresa: dos requests pueden calcular el mismo count()+1 antes
+    # de que ninguna haya comiteado. Mismo patrón que _next_stock_code en
+    # routes_stock.py — sin esto, la segunda terminaba en un 500 genérico
+    # por violar uq_quotation_company_number en vez de un reintento limpio.
+    for attempt in range(2):
+        quotation = Quotation(
+            **payload.dict(),
+            number=_next_number(db, member.company_id),
+            company_id=member.company_id,
+            total_ars=0.0,
+            total_usd=0.0,
+        )
+        quotation.created_by_id = member.user_id
+        db.add(quotation)
+        try:
+            db.flush()
+            break
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise HTTPException(
+                    status_code=409, detail="No se pudo generar un número de cotización único, reintentá."
+                )
     log_event(db, quotation.id, "created", "Cotización creada", member.user_id)
     db.commit()
     db.refresh(quotation)
