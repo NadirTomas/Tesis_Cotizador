@@ -1,0 +1,97 @@
+name: CI
+
+# Objetivo: impedir que un commit roto llegue a main sin señal, antes de
+# que Railway lo auto-despliegue. No hace deploy -- Railway sigue
+# encargándose de eso por su cuenta al pushear a main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend (pytest, SQLite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+        env:
+          SECRET_KEY: ci-test-secret-key-not-for-production
+
+  backend-postgres:
+    name: Backend (integración PostgreSQL real)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cotizalaser_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cotizalaser_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: alembic upgrade head (DB vacía)
+        run: alembic upgrade head
+      - name: Un solo head
+        run: |
+          heads=$(alembic heads | wc -l)
+          if [ "$heads" -ne 1 ]; then
+            echo "Se esperaba exactamente un head de Alembic, hay $heads" >&2
+            exit 1
+          fi
+      # Cada archivo de test contra Postgres real corre en su PROPIO
+      # proceso de pytest -- conftest.py importa app.db.session al
+      # recolectar, así que DATABASE_URL tiene que estar puesta desde
+      # antes del primer import de cualquier módulo de la app en ESE
+      # proceso (ver docstring de ambos archivos).
+      - name: Tests de integración contra Postgres real
+        run: |
+          pytest -q tests/test_postgres_hardening_integration.py
+          pytest -q tests/test_quotation_cancel_confirm_race_postgres.py
+
+  frontend:
+    name: Frontend (tests, tsc, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx vitest run
+      - run: npx tsc --noEmit
+      - run: npx vite build
