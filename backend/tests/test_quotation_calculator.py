@@ -30,6 +30,12 @@ from app.services.quotation_calculator import calculate_quotation_item
 
 client = TestClient(app)
 
+_DUMMY_RECT_DXF = (
+    "0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n1\n"
+    "10\n0\n20\n0\n10\n10\n20\n0\n10\n10\n20\n10\n10\n0\n20\n10\n"
+    "0\nENDSEC\n0\nEOF\n"
+)
+
 
 def _reset_db_file() -> None:
     engine.dispose()
@@ -78,11 +84,12 @@ def _create_machine_config(headers, material_id, cut_speed_mm_min=1000.0, machin
 
 
 def _create_piece(headers, material_id, area_mm2=100_000.0, length_cut_mm=2000.0, name="Pieza"):
-    """Crea la pieza sin DXF y fija area_mm2/length_cut_mm directo por DB
-    -- valores exactos y redondos para verificar la fórmula a mano, sin
-    depender de la geometría real de un DXF (eso ya lo cubre
-    test_dxf_analysis.py por separado)."""
-    res = client.post("/pieces", json={"name": name, "material_id": material_id}, headers=headers)
+    """Crea la pieza con un DXF dummy (el DXF es obligatorio para crear) y
+    después pisa area_mm2/length_cut_mm directo por DB -- valores exactos y
+    redondos para verificar la fórmula a mano, sin depender de la geometría
+    real de un DXF (eso ya lo cubre test_dxf_analysis.py por separado)."""
+    files = {"file": (f"{name}.dxf", _DUMMY_RECT_DXF.encode("utf-8"), "application/dxf")}
+    res = client.post("/pieces", data={"name": name, "material_id": material_id}, files=files, headers=headers)
     assert res.status_code == 200
     piece_id = res.json()["id"]
     db = SessionLocal()

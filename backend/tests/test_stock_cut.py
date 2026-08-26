@@ -142,12 +142,10 @@ EOF
 
 
 def _create_piece_with_dxf(headers, material_id, w, h):
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
-    piece_id = res.json()["id"]
     files = {"file": ("pieza.dxf", _rect_dxf(w, h).encode("utf-8"), "application/dxf")}
-    up = client.post(f"/pieces/{piece_id}/upload-dxf", files=files, headers=headers)
-    assert up.status_code == 200
-    return piece_id
+    res = client.post("/pieces", data={"name": "Pieza", "material_id": material_id}, files=files, headers=headers)
+    assert res.status_code == 200
+    return res.json()["id"]
 
 
 def _create_stock(headers, material_id, width_mm, height_mm):

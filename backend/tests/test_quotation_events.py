@@ -8,6 +8,12 @@ from app.main import app
 
 client = TestClient(app)
 
+_DUMMY_RECT_DXF = (
+    "0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n1\n"
+    "10\n0\n20\n0\n10\n10\n20\n0\n10\n10\n20\n10\n10\n0\n20\n10\n"
+    "0\nENDSEC\n0\nEOF\n"
+)
+
 
 def _reset_db_file() -> None:
     engine.dispose()
@@ -45,7 +51,8 @@ def test_quotation_lifecycle_generates_expected_events():
         json={"material_id": material_id, "cut_speed_mm_min": 3000, "machine_cost_per_hour_ars": 18000, "setup_time_min": 10},
         headers=headers,
     )
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
+    files = {"file": ("pieza.dxf", _DUMMY_RECT_DXF.encode("utf-8"), "application/dxf")}
+    res = client.post("/pieces", data={"name": "Pieza", "material_id": material_id}, files=files, headers=headers)
     piece_id = res.json()["id"]
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]

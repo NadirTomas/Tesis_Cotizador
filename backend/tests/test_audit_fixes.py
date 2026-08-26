@@ -200,7 +200,12 @@ def test_quotation_item_rejects_negative_quantity():
         json={"material_id": material_id, "cut_speed_mm_min": 3000, "machine_cost_per_hour_ars": 18000, "setup_time_min": 10},
         headers=headers,
     )
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
+    res = client.post(
+        "/pieces",
+        data={"name": "Pieza", "material_id": material_id},
+        files={"file": ("rect.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")},
+        headers=headers,
+    )
     piece_id = res.json()["id"]
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
@@ -225,13 +230,13 @@ def test_update_quotation_item_recalculates():
         json={"material_id": material_id, "cut_speed_mm_min": 3000, "machine_cost_per_hour_ars": 18000, "setup_time_min": 10},
         headers=headers,
     )
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
-    piece_id = res.json()["id"]
-    client.post(
-        f"/pieces/{piece_id}/upload-dxf",
+    res = client.post(
+        "/pieces",
+        data={"name": "Pieza", "material_id": material_id},
         files={"file": ("rect.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")},
         headers=headers,
     )
+    piece_id = res.json()["id"]
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
     res = client.post(
@@ -264,7 +269,12 @@ def _setup_quotation_with_item(headers):
         json={"material_id": material_id, "cut_speed_mm_min": 3000, "machine_cost_per_hour_ars": 18000, "setup_time_min": 10},
         headers=headers,
     )
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
+    res = client.post(
+        "/pieces",
+        data={"name": "Pieza", "material_id": material_id},
+        files={"file": ("rect.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")},
+        headers=headers,
+    )
     piece_id = res.json()["id"]
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]

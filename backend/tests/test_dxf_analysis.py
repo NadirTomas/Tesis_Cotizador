@@ -286,7 +286,8 @@ def test_upload_dxf_endpoint_rejects_corrupt_file_cleanly():
     headers = {"Authorization": f"Bearer {token}", "X-Company-Id": str(res.json()["id"])}
     res = client.post("/materials", json={"name": "Acero", "material_type": "Acero", "thickness_mm": 3, "sheet_width_mm": 1500, "sheet_height_mm": 3000, "sheet_cost_ars": 85000}, headers=headers)
     material_id = res.json()["id"]
-    res = client.post("/pieces", json={"name": "Pieza", "material_id": material_id}, headers=headers)
+    initial_files = {"file": ("pieza.dxf", _minimal_raw_dxf(_raw_closed_square(10, 10)).encode("utf-8"), "application/dxf")}
+    res = client.post("/pieces", data={"name": "Pieza", "material_id": material_id}, files=initial_files, headers=headers)
     piece_id = res.json()["id"]
 
     # Extensión no permitida -- rechazo de contrato, sin tocar analyze_dxf.

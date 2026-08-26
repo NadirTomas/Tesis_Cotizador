@@ -113,18 +113,11 @@ def test_full_flow_rect_100x50():
 
     response = client.post(
         "/pieces",
-        json={
+        data={
             "name": "Rect 100x50",
             "description": "prueba e2e",
             "material_id": material_id,
         },
-        headers=headers,
-    )
-    assert response.status_code == 200
-    piece_id = response.json()["id"]
-
-    response = client.post(
-        f"/pieces/{piece_id}/upload-dxf",
         files={
             "file": ("rect_100x50.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")
         },
@@ -132,6 +125,7 @@ def test_full_flow_rect_100x50():
     )
     assert response.status_code == 200
     piece_data = response.json()
+    piece_id = piece_data["id"]
     assert piece_data["length_cut_mm"] == pytest.approx(300.0, rel=1e-2)
     assert piece_data["area_mm2"] == pytest.approx(5000.0, rel=1e-2)
 
@@ -223,14 +217,13 @@ def test_full_flow_including_stock_reservation_cut_and_traceability():
         json={"material_id": material_id, "cut_speed_mm_min": 1000.0, "machine_cost_per_hour_ars": 600.0, "setup_time_min": 0.0},
         headers=headers,
     )
-    piece_id = client.post(
-        "/pieces", json={"name": "Rect 100x50", "material_id": material_id}, headers=headers
-    ).json()["id"]
     piece = client.post(
-        f"/pieces/{piece_id}/upload-dxf",
+        "/pieces",
+        data={"name": "Rect 100x50", "material_id": material_id},
         files={"file": ("rect_100x50.dxf", RECT_100x50_DXF.encode("utf-8"), "application/dxf")},
         headers=headers,
     ).json()
+    piece_id = piece["id"]
     assert piece["area_mm2"] == pytest.approx(5000.0, rel=1e-2)
 
     client_id = client.post("/clients", json={"name": "Cliente Test"}, headers=headers).json()["id"]

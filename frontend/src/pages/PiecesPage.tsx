@@ -1,4 +1,4 @@
-import { Add, Delete, Edit, UploadFile, Search } from "@mui/icons-material";
+import { Add, Delete, Edit, Search } from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -37,7 +37,6 @@ import {
   getPieces,
   getPiecePreviewUrl,
   updatePiece,
-  uploadDxf,
   type Piece,
   type PieceCreate,
 } from "../services/pieces";
@@ -49,16 +48,17 @@ const PiecesPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Modal importar DXF
+  // Modal crear pieza (DXF obligatorio)
   const [importOpen, setImportOpen] = useState(false);
   const [dxfFile, setDxfFile] = useState<File | null>(null);
   const [importName, setImportName] = useState("");
+  const [importDescription, setImportDescription] = useState("");
   const [importMaterialId, setImportMaterialId] = useState<number | "">("");
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Modal nueva pieza manual / editar
-  const [manualOpen, setManualOpen] = useState(false);
+  // Modal editar pieza (solo metadata, el DXF ya está cargado)
+  const [editOpen, setEditOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [manualName, setManualName] = useState("");
   const [manualDescription, setManualDescription] = useState("");
@@ -106,6 +106,7 @@ const PiecesPage = () => {
   function openImport() {
     setDxfFile(null);
     setImportName("");
+    setImportDescription("");
     setImportMaterialId("");
     setImportOpen(true);
   }
@@ -116,26 +117,18 @@ const PiecesPage = () => {
     try {
       const payload: PieceCreate = {
         name: importName.trim(),
+        ...(importDescription.trim() && { description: importDescription.trim() }),
         ...(importMaterialId !== "" && { material_id: importMaterialId as number }),
       };
-      const created = await createPiece(payload);
-      await uploadDxf(created.id, dxfFile);
-      setToast("Pieza importada y DXF analizado.");
+      await createPiece(payload, dxfFile);
+      setToast("Pieza creada y DXF analizado.");
       setImportOpen(false);
       await loadAll();
     } catch {
-      setToast("Error al importar la pieza.");
+      setToast("Error al crear la pieza.");
     } finally {
       setImporting(false);
     }
-  }
-
-  function openCreate() {
-    setEditingId(null);
-    setManualName("");
-    setManualDescription("");
-    setManualMaterialId("");
-    setManualOpen(true);
   }
 
   function openEdit(p: Piece) {
@@ -143,11 +136,11 @@ const PiecesPage = () => {
     setManualName(p.name);
     setManualDescription(p.description ?? "");
     setManualMaterialId(p.material_id ?? "");
-    setManualOpen(true);
+    setEditOpen(true);
   }
 
-  async function handleSaveManual() {
-    if (!manualName.trim()) return;
+  async function handleSaveEdit() {
+    if (editingId === null || !manualName.trim()) return;
     setSaving(true);
     try {
       const payload = {
@@ -155,14 +148,9 @@ const PiecesPage = () => {
         ...(manualDescription.trim() && { description: manualDescription.trim() }),
         ...(manualMaterialId !== "" && { material_id: manualMaterialId as number }),
       };
-      if (editingId !== null) {
-        await updatePiece(editingId, payload);
-        setToast("Pieza actualizada.");
-      } else {
-        await createPiece(payload);
-        setToast("Pieza creada.");
-      }
-      setManualOpen(false);
+      await updatePiece(editingId, payload);
+      setToast("Pieza actualizada.");
+      setEditOpen(false);
       await loadAll();
     } catch {
       setToast("Error al guardar la pieza.");
@@ -206,14 +194,9 @@ const PiecesPage = () => {
             Cargá archivos DXF y administrá piezas
           </Typography>
         </Box>
-        <Box display="flex" gap={1}>
-          <Button variant="outlined" startIcon={<UploadFile />} onClick={openImport}>
-            Importar DXF
-          </Button>
-          <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-            Crear pieza
-          </Button>
-        </Box>
+        <Button variant="contained" startIcon={<Add />} onClick={openImport}>
+          Crear pieza
+        </Button>
       </Box>
 
       {/* Búsqueda */}
@@ -325,9 +308,9 @@ const PiecesPage = () => {
         </TableContainer>
       )}
 
-      {/* Modal importar DXF */}
+      {/* Modal crear pieza (DXF obligatorio) */}
       <Dialog open={importOpen} onClose={() => setImportOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Importar pieza desde DXF</DialogTitle>
+        <DialogTitle>Crear pieza</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Box>
             <Button variant="outlined" onClick={() => fileInputRef.current?.click()} fullWidth
@@ -344,6 +327,12 @@ const PiecesPage = () => {
             helperText="Se completa con el nombre del archivo — seleccioná todo antes de escribir para reemplazarlo"
             slotProps={{ htmlInput: { onFocus: (e: React.FocusEvent<HTMLInputElement>) => e.target.select() } }}
           />
+          <TextField
+            label="Descripción"
+            value={importDescription}
+            onChange={(e) => setImportDescription(e.target.value)}
+            fullWidth multiline rows={2}
+          />
           <FormControl fullWidth>
             <InputLabel>Material (opcional)</InputLabel>
             <Select label="Material (opcional)" value={importMaterialId} onChange={(e) => setImportMaterialId(e.target.value as number | "")}>
@@ -357,14 +346,14 @@ const PiecesPage = () => {
         <DialogActions>
           <Button onClick={() => setImportOpen(false)} disabled={importing}>Cancelar</Button>
           <Button variant="contained" onClick={handleImport} disabled={importing || !dxfFile || !importName.trim()}>
-            {importing ? "Importando..." : "Importar"}
+            {importing ? "Creando..." : "Crear"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Modal nueva pieza / editar */}
-      <Dialog open={manualOpen} onClose={() => setManualOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? "Editar pieza" : "Crear pieza"}</DialogTitle>
+      {/* Modal editar pieza (metadata, el DXF ya está cargado) */}
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Editar pieza</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField label="Nombre" value={manualName} onChange={(e) => setManualName(e.target.value)} fullWidth required />
           <TextField label="Descripción" value={manualDescription} onChange={(e) => setManualDescription(e.target.value)} fullWidth multiline rows={2} />
@@ -379,8 +368,8 @@ const PiecesPage = () => {
           </FormControl>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManualOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSaveManual} disabled={saving || !manualName.trim()}>
+          <Button onClick={() => setEditOpen(false)} disabled={saving}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSaveEdit} disabled={saving || !manualName.trim()}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

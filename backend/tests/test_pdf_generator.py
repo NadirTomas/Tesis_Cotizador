@@ -90,14 +90,13 @@ def _create_machine_config(headers, material_id):
 
 
 def _create_piece(headers, material_id, name="Pieza"):
-    res = client.post("/pieces", json={"name": name, "material_id": material_id}, headers=headers)
-    piece_id = res.json()["id"]
-    client.post(
-        f"/pieces/{piece_id}/upload-dxf",
+    res = client.post(
+        "/pieces",
+        data={"name": name, "material_id": material_id},
         files={"file": (f"{name}.dxf", RECT_DXF.encode("utf-8"), "application/dxf")},
         headers=headers,
     )
-    return piece_id
+    return res.json()["id"]
 
 
 def _create_quotation(headers, client_id, **kwargs):

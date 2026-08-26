@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface Piece {
   id: number;
@@ -51,13 +51,21 @@ export async function getPiece(id: number): Promise<Piece> {
   return res.json();
 }
 
-export async function createPiece(data: PieceCreate): Promise<Piece> {
+export async function createPiece(data: PieceCreate, file: File): Promise<Piece> {
+  const formData = new FormData();
+  formData.append("name", data.name);
+  if (data.description) formData.append("description", data.description);
+  if (data.material_id !== undefined) formData.append("material_id", String(data.material_id));
+  formData.append("file", file);
   const res = await apiFetch(BASE, {
     method: "POST",
-    headers: getAuthHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(data),
+    headers: getAuthHeaders(),
+    body: formData,
   });
-  if (!res.ok) throw new Error("Error al crear pieza");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al crear pieza");
+  }
   return res.json();
 }
 

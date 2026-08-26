@@ -8,6 +8,12 @@ from app.main import app
 
 client = TestClient(app)
 
+_DUMMY_RECT_DXF = (
+    "0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\n0\n90\n4\n70\n1\n"
+    "10\n0\n20\n0\n10\n10\n20\n0\n10\n10\n20\n10\n10\n0\n20\n10\n"
+    "0\nENDSEC\n0\nEOF\n"
+)
+
 
 def _reset_db_file() -> None:
     engine.dispose()  # libera conexiones abiertas (Windows bloquea el archivo si no)
@@ -89,7 +95,8 @@ def test_cannot_use_machine_config_from_other_company_in_quotation_item():
         json={"material_id": material_a, "cut_speed_mm_min": 3000, "machine_cost_per_hour_ars": 18000, "setup_time_min": 10},
         headers=headers_a,
     )
-    res = client.post("/pieces", json={"name": "Pieza A", "material_id": material_a}, headers=headers_a)
+    files = {"file": ("pieza_a.dxf", _DUMMY_RECT_DXF.encode("utf-8"), "application/dxf")}
+    res = client.post("/pieces", data={"name": "Pieza A", "material_id": material_a}, files=files, headers=headers_a)
     piece_a = res.json()["id"]
     res = client.post("/clients", json={"name": "Cliente A"}, headers=headers_a)
     client_a_id = res.json()["id"]
