@@ -49,6 +49,11 @@ export interface QuotationItemCreate {
   margin_percent: number;
 }
 
+export interface QuotationItemUpdate {
+  quantity?: number;
+  margin_percent?: number;
+}
+
 export interface QuotationEvent {
   id: number;
   event_type: string;
@@ -96,6 +101,16 @@ export async function createQuotationItem(data: QuotationItemCreate): Promise<Qu
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error("Error al crear ítem de cotización");
+  return res.json();
+}
+
+export async function updateQuotationItem(itemId: number, data: QuotationItemUpdate): Promise<QuotationItem> {
+  const res = await apiFetch(`${ITEMS_BASE}/${itemId}`, {
+    method: "PUT",
+    headers: getAuthHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Error al actualizar ítem de cotización");
   return res.json();
 }
 

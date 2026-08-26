@@ -52,6 +52,7 @@ import {
   getQuotationEvents,
   getQuotationItems,
   getQuotationPdfUrl,
+  updateQuotationItem,
   updateQuotationStatus,
   type Quotation,
   type QuotationEvent,
@@ -109,6 +110,13 @@ const QuotationDetailPage = () => {
   const [addError, setAddError] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
+
+  // Editar ítem existente — solo cantidad/margen, es lo único que soporta
+  // PUT /quotation-items/{id}; pieza/material no se pueden cambiar.
+  const [editingItem, setEditingItem] = useState<QuotationItem | null>(null);
+  const [editQuantity, setEditQuantity] = useState(1);
+  const [editMargin, setEditMargin] = useState(0);
+  const [editSaving, setEditSaving] = useState(false);
 
   // Recomendación de stock (informativa mientras la cotización no está aceptada)
   const [recommendations, setRecommendations] = useState<StockRecommendation[] | null>(null);
@@ -210,6 +218,30 @@ const QuotationDetailPage = () => {
       await loadAll();
     } catch {
       setToast("Error al eliminar el ítem.");
+    }
+  }
+
+  function openEditItem(item: QuotationItem) {
+    setEditingItem(item);
+    setEditQuantity(item.quantity);
+    setEditMargin(item.margin_percent);
+  }
+
+  async function handleUpdateItem() {
+    if (!editingItem) return;
+    setEditSaving(true);
+    try {
+      await updateQuotationItem(editingItem.id, {
+        quantity: editQuantity,
+        margin_percent: editMargin,
+      });
+      setEditingItem(null);
+      setToast("Ítem actualizado.");
+      await loadAll();
+    } catch {
+      setToast("Error al actualizar el ítem.");
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -443,6 +475,13 @@ const QuotationDetailPage = () => {
                       </TableCell>
                     )}
                     <TableCell align="center" sx={{ py: 0 }}>
+                      {quotation.status === "draft" && (
+                        <Tooltip title="Editar ítem">
+                          <IconButton size="small" onClick={() => openEditItem(item)}>
+                            <Edit fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {(quotation.status === "draft" || quotation.status === "accepted") && (
                         <Tooltip title="Eliminar ítem">
                           <IconButton size="small" color="error" onClick={() => setDeleteItemId(item.id)}>
@@ -653,6 +692,35 @@ const QuotationDetailPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setLocationView(null)}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Editar ítem — solo cantidad/margen, lo único que soporta el backend */}
+      <Dialog open={editingItem !== null} onClose={() => setEditingItem(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Editar ítem — {editingItem ? pcName(editingItem.piece_id) : ""}</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+          <TextField
+            label="Cantidad"
+            type="number"
+            value={editQuantity}
+            onChange={(e) => setEditQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+            fullWidth
+            inputProps={{ min: 1 }}
+          />
+          <TextField
+            label="Margen %"
+            type="number"
+            value={editMargin}
+            onChange={(e) => setEditMargin(Math.max(0, parseFloat(e.target.value) || 0))}
+            fullWidth
+            inputProps={{ min: 0 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditingItem(null)} disabled={editSaving}>Cancelar</Button>
+          <Button variant="contained" onClick={handleUpdateItem} disabled={editSaving}>
+            {editSaving ? "Guardando..." : "Guardar"}
+          </Button>
         </DialogActions>
       </Dialog>
 
