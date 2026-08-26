@@ -28,7 +28,6 @@ def analyze_dxf(path: str) -> Tuple[float, float]:
 
 def _analyze_modelspace(msp) -> Tuple[float, float]:
     length_total = 0.0
-    area_total = 0.0
 
     for entity in msp:
         dxftype = entity.dxftype()
@@ -46,13 +45,12 @@ def _analyze_modelspace(msp) -> Tuple[float, float]:
                 is_closed = entity.closed or getattr(entity, "is_closed", False)
                 if is_closed:
                     length_total += math.dist(vertices[-1], vertices[0])
-            if entity.closed and len(vertices) >= 3:
-                area_total += _polygon_area(vertices)
 
         elif dxftype == "CIRCLE":
             radius = entity.dxf.radius
             length_total += 2 * math.pi * radius
 
+    area_total = _closed_loop_area(_loops_from_msp(msp))
     return float(length_total), float(area_total)
 
 
@@ -64,7 +62,6 @@ def _analyze_dxf_fallback(path: str) -> Tuple[float, float]:
         raise ValueError(f"DXF inválido o no se pudo leer: {exc}") from exc
 
     length_total = 0.0
-    area_total = 0.0
 
     idx = 0
     while idx < len(lines) - 1:
@@ -119,13 +116,12 @@ def _analyze_dxf_fallback(path: str) -> Tuple[float, float]:
                         length_total += math.dist(vertices[v_idx], vertices[v_idx + 1])
                     if is_closed:
                         length_total += math.dist(vertices[-1], vertices[0])
-                if is_closed and len(vertices) >= 3:
-                    area_total += _polygon_area(vertices)
             elif entity_type == "CIRCLE" and radius is not None:
                 length_total += 2 * math.pi * radius
         else:
             idx += 2
 
+    area_total = _closed_loop_area(_loops_from_fallback_parse(path))
     return float(length_total), float(area_total)
 
 
@@ -353,10 +349,17 @@ def _build_polygon_from_loops(loops: list[Polygon]) -> Polygon:
     return polygon
 
 
-def _polygon_area(vertices: list[tuple[float, float]]) -> float:
-    area = 0.0
-    for idx in range(len(vertices)):
-        x1, y1 = vertices[idx]
-        x2, y2 = vertices[(idx + 1) % len(vertices)]
-        area += x1 * y2 - x2 * y1
-    return abs(area) / 2.0
+def _closed_loop_area(loops: list[Polygon]) -> float:
+    """
+    Área neta de la pieza (contorno exterior menos agujeros internos),
+    reutilizando la misma construcción de polígono con huecos que
+    extract_piece_polygon. Antes se sumaba el área de cada loop cerrado sin
+    distinguir exterior de agujero (sobrestimando el material real) y los
+    CIRCLE nunca contaban para el área (subestimándola a 0 en piezas
+    circulares) — con esto piece.area_mm2 queda consistente con el área que
+    stock_cut.compute_remnants realmente descuenta al confirmar un corte.
+    """
+    try:
+        return _build_polygon_from_loops(loops).area
+    except ValueError:
+        return 0.0
