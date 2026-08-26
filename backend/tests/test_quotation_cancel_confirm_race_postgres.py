@@ -22,48 +22,66 @@ genuina hace falta una base Postgres real.
    DATABASE_URL=postgresql://postgres:test@localhost:55432/postgres alembic upgrade head
    ```
 
-3. Corré este archivo SOLO (en su propio proceso de pytest, nunca junto al
-   resto del suite — ver nota de imports diferidos más abajo):
+3. Corré este archivo SOLO, con DATABASE_URL ya puesta en el shell ANTES
+   de invocar pytest (nunca junto al resto del suite):
 
    ```
-   POSTGRES_TEST_DATABASE_URL=postgresql://postgres:test@localhost:55432/postgres \
+   DATABASE_URL=postgresql://postgres:test@localhost:55432/postgres \
        pytest backend/tests/test_quotation_cancel_confirm_race_postgres.py -p no:cacheprovider
    ```
 
-Sin `POSTGRES_TEST_DATABASE_URL` seteada, este módulo se saltea por
-completo (no intenta importar nada de la app, así que no interfiere con el
-resto del suite corriendo contra SQLite).
+Sin DATABASE_URL apuntando a Postgres, este módulo se saltea por completo.
+
+NOTA: fijar la env var *dentro* de este archivo (antes de importar la app)
+NO alcanza, aunque a primera vista parezca suficiente -- conftest.py ya
+importa app.db.session (vía routes_auth) al recolectar los tests, antes de
+que el código de este módulo llegue a ejecutarse, así que el engine
+quedaría bindeado a SQLite de todos modos. Por eso DATABASE_URL tiene que
+estar en el entorno desde antes de invocar pytest.
 """
 
 import os
 
 import pytest
 
-_POSTGRES_TEST_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
+_DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-if not _POSTGRES_TEST_URL:
+if not _DATABASE_URL.startswith("postgresql"):
     pytest.skip(
-        "requiere POSTGRES_TEST_DATABASE_URL apuntando a una base Postgres de test "
-        "real con las migraciones ya aplicadas -- ver docstring de este archivo",
+        "requiere DATABASE_URL apuntando a una base Postgres de test real (fijada "
+        "en el shell ANTES de invocar pytest, no dentro de este módulo) con las "
+        "migraciones ya aplicadas -- ver docstring de este archivo",
         allow_module_level=True,
     )
-
-# IMPORTANTE: hay que fijar DATABASE_URL ANTES de importar cualquier
-# módulo de la app -- app.db.session lee la env var una sola vez al
-# importarse y bindea el engine para todo el proceso. Por eso este test no
-# puede compartir proceso de pytest con el resto del suite (que ya importó
-# app.db.session contra SQLite).
-os.environ["DATABASE_URL"] = _POSTGRES_TEST_URL
 
 from concurrent.futures import ThreadPoolExecutor  # noqa: E402
 
 import sqlalchemy as sa  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.api.v1.routes_auth import limiter as _auth_limiter  # noqa: E402
+from app.api.v1.routes_client_errors import limiter as _client_errors_limiter  # noqa: E402
+from app.api.v1.routes_companies import limiter as _companies_limiter  # noqa: E402
+from app.api.v1.routes_pieces import limiter as _pieces_limiter  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.main import limiter as _main_limiter  # noqa: E402
 
 client = TestClient(app)
+
+_LIMITERS = (_main_limiter, _auth_limiter, _pieces_limiter, _companies_limiter, _client_errors_limiter)
+
+
+def _reset_rate_limits() -> None:
+    """
+    conftest.py resetea estos limiters con un fixture autouse -- pero solo
+    una vez por función de test. Esta suite corre 25 iteraciones DENTRO de
+    una sola función (para reutilizar el mismo ThreadPoolExecutor y medir
+    la carrera), así que el límite de subida de DXF (5/min) se agotaba a
+    mitad de camino sin esto.
+    """
+    for limiter in _LIMITERS:
+        limiter.reset()
 
 _APP_TABLES = (
     "stock_movements", "stock_reservations", "stock_sheets",
@@ -167,27 +185,40 @@ def _setup_accepted_with_reservation():
 
 
 def _run_n_times(n: int, fn):
-    """Corre el escenario N veces para exponer la carrera pese a la variabilidad de timing entre threads."""
+    """
+    Corre el escenario N veces, alternando qué request se envía primero en
+    cada repetición (ver comentario en _one_race) para forzar que ambas
+    ramas de la invariante se ejerciten bajo contención real.
+    """
     results = []
-    for _ in range(n):
+    for i in range(n):
         _reset_postgres_data()
-        results.append(fn())
+        _reset_rate_limits()
+        results.append(fn(cancel_first=(i % 2 == 0)))
     return results
 
 
 def test_concurrent_cancel_and_confirm_cut_never_produce_the_forbidden_state():
-    def _one_race():
+    def _one_race(cancel_first: bool):
         headers, stock, quotation_id, reservation_id = _setup_accepted_with_reservation()
 
+        cancel_call = (
+            client.patch, (f"/quotations/{quotation_id}/status",), {"json": {"status": "cancelled"}, "headers": headers},
+        )
+        confirm_call = (
+            client.post, (f"/stock/reservations/{reservation_id}/confirm-cut",), {"headers": headers},
+        )
+        # El thread enviado primero a un pool de 2 workers tiende a llegar
+        # primero al lock de fila de Postgres de forma consistente (no es
+        # una carrera genuina de 50/50) — alternar qué request se manda
+        # primero es necesario para forzar que ambas ramas de la invariante
+        # se ejerciten de verdad a lo largo de las repeticiones, en vez de
+        # que el orden de submit() sesgue siempre al mismo ganador.
+        calls = [cancel_call, confirm_call] if cancel_first else [confirm_call, cancel_call]
         with ThreadPoolExecutor(max_workers=2) as pool:
-            cancel_future = pool.submit(
-                client.patch, f"/quotations/{quotation_id}/status", json={"status": "cancelled"}, headers=headers,
-            )
-            confirm_future = pool.submit(
-                client.post, f"/stock/reservations/{reservation_id}/confirm-cut", headers=headers,
-            )
-            cancel_res = cancel_future.result()
-            confirm_res = confirm_future.result()
+            futures = [pool.submit(fn, *args, **kwargs) for fn, args, kwargs in calls]
+            results = [f.result() for f in futures]
+        cancel_res, confirm_res = results if cancel_first else results[::-1]
 
         quotation_status = client.get(f"/quotations/{quotation_id}", headers=headers).json()["status"]
         stock_status = client.get(f"/stock/{stock['id']}", headers=headers).json()["status"]
@@ -203,8 +234,15 @@ def test_concurrent_cancel_and_confirm_cut_never_produce_the_forbidden_state():
         )
 
         if cancel_won:
-            # Escenario A
-            assert confirm_res.status_code == 409
+            # Escenario A. confirm-cut pierde con 409 si ambas requests
+            # coincidieron en la fila (bloqueo real de Postgres, el caso
+            # que este test busca ejercitar); si el scheduler del SO no
+            # las solapó exactamente y la cancelación ya había comiteado
+            # del todo antes de que confirm-cut hiciera su propia lectura
+            # inicial, pierde con 400 ("la reserva ya no está ACTIVE") —
+            # ambos son resultados correctos, ninguno dejó el estado
+            # prohibido.
+            assert confirm_res.status_code in (400, 409), confirm_res.status_code
             assert quotation_status == "cancelled"
             assert stock_status == "AVAILABLE"
         else:
@@ -221,7 +259,11 @@ def test_concurrent_cancel_and_confirm_cut_never_produce_the_forbidden_state():
 
     # Corremos varias veces: el scheduler del SO decide qué thread llega
     # primero a Postgres, así que una sola corrida podría no ejercitar las
-    # dos ramas. Diez intentos alcanzan para observar ambos ganadores en la
+    # dos ramas. 25 intentos alcanzan para observar ambos ganadores en la
     # práctica sin hacer el test excesivamente lento.
-    outcomes = _run_n_times(10, _one_race)
-    assert set(outcomes) <= {"cancel", "confirm"}
+    outcomes = _run_n_times(25, _one_race)
+    print(f"\nresultados de las 25 corridas: {outcomes.count('cancel')} cancel, {outcomes.count('confirm')} confirm")
+    assert set(outcomes) == {"cancel", "confirm"}, (
+        "las 25 corridas tendrían que ejercitar ambas ramas de la invariante "
+        f"(alternando qué request se envía primero) -- se observó: {outcomes}"
+    )
