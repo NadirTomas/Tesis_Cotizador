@@ -220,3 +220,26 @@ def test_piece_from_other_company_rejected():
         headers=headers_b,
     )
     assert res.status_code == 404
+
+
+def test_piece_larger_than_sheet_in_both_orientations_never_fits():
+    """Etapa 21 (smoke de nesting): una pieza que no entra en la chapa ni
+    rotada ni sin rotar no debe crashear -- queda simplemente sin colocar,
+    reportada como tal, nunca un 500."""
+    headers = _setup_owner()
+    material_id = _create_material(headers)
+    piece_id = _create_piece(headers, material_id, 2000, 2000)  # más grande que cualquier lado de la chapa
+
+    res = client.post(
+        "/nesting/calculate",
+        json={
+            "items": [{"piece_id": piece_id, "quantity": 3}],
+            "sheet_width_mm": 500, "sheet_height_mm": 500, "allow_rotation": True,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total_pieces_requested"] == 3
+    assert data["total_pieces_placed"] == 0
+    assert data["total_sheets"] == 0
