@@ -148,7 +148,7 @@ def upload_dxf(
 
     _, ext = os.path.splitext(file.filename or "")
     if ext.lower() != ".dxf":
-        logger.warning("DXF upload failed: invalid file format", extra={"piece_id": piece_id, "filename": file.filename, "user": member.user_id})
+        logger.warning("DXF upload failed: invalid file format", extra={"piece_id": piece_id, "dxf_filename": file.filename, "user": member.user_id})
         raise HTTPException(status_code=400, detail="Only .dxf files are allowed")
 
     # Leer contenido del archivo
@@ -164,7 +164,7 @@ def upload_dxf(
             tmp_path = tmp.name
         length_cut_mm, area_mm2 = analyze_dxf(tmp_path)
     except Exception:
-        logger.exception("DXF analysis failed", extra={"piece_id": piece_id, "filename": file.filename, "user": member.user_id})
+        logger.exception("DXF analysis failed", extra={"piece_id": piece_id, "dxf_filename": file.filename, "user": member.user_id})
         raise HTTPException(status_code=400, detail="No se pudo leer el archivo DXF. Verificá que sea un DXF válido.")
     finally:
         Path(tmp_path).unlink(missing_ok=True)
