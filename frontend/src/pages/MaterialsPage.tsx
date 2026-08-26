@@ -163,7 +163,7 @@ const MaterialsPage = () => {
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-          Nuevo material
+          Crear material
         </Button>
       </Box>
 
@@ -246,7 +246,7 @@ const MaterialsPage = () => {
 
       {/* Modal crear / editar */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? "Editar material" : "Nuevo material"}</DialogTitle>
+        <DialogTitle>{editingId ? "Editar material" : "Crear material"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField label="Nombre" value={form.name} onChange={(e) => handleField("name", e.target.value)} fullWidth required />
           <TextField

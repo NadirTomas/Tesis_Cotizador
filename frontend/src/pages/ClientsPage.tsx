@@ -167,7 +167,7 @@ const ClientsPage = () => {
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-          Nuevo cliente
+          Crear cliente
         </Button>
       </Box>
 
@@ -242,7 +242,7 @@ const ClientsPage = () => {
 
       {/* Modal crear / editar */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? "Editar cliente" : "Nuevo cliente"}</DialogTitle>
+        <DialogTitle>{editingId ? "Editar cliente" : "Crear cliente"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField label="Nombre" value={form.name} onChange={(e) => handleField("name", e.target.value)} fullWidth required />
           <TextField label="CUIT / CUIL" value={form.cuit_cuil} onChange={(e) => handleField("cuit_cuil", e.target.value)} fullWidth />

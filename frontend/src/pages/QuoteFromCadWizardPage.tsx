@@ -437,7 +437,7 @@ const QuoteFromCadWizardPage = () => {
         <Box display="flex" alignItems="center" gap={1.5} mb={0.75}>
           <Box sx={{ width: 3, height: 26, bgcolor: "primary.main", borderRadius: 1, boxShadow: "0 0 10px rgba(255,107,0,0.6)", flexShrink: 0 }} />
           <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 700, fontSize: "1.8rem", letterSpacing: "0.05em", textTransform: "uppercase", lineHeight: 1 }}>
-            Nueva cotización
+            Crear cotización
           </Typography>
         </Box>
         <Typography sx={{ color: "text.secondary", fontSize: "0.82rem", ml: "19px" }}>

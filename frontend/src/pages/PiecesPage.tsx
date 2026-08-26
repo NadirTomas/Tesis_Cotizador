@@ -211,7 +211,7 @@ const PiecesPage = () => {
             Importar DXF
           </Button>
           <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-            Nueva pieza
+            Crear pieza
           </Button>
         </Box>
       </Box>
@@ -364,7 +364,7 @@ const PiecesPage = () => {
 
       {/* Modal nueva pieza / editar */}
       <Dialog open={manualOpen} onClose={() => setManualOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? "Editar pieza" : "Nueva pieza"}</DialogTitle>
+        <DialogTitle>{editingId ? "Editar pieza" : "Crear pieza"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField label="Nombre" value={manualName} onChange={(e) => setManualName(e.target.value)} fullWidth required />
           <TextField label="Descripción" value={manualDescription} onChange={(e) => setManualDescription(e.target.value)} fullWidth multiline rows={2} />

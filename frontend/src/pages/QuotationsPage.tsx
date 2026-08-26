@@ -121,7 +121,7 @@ const QuotationsPage = () => {
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={() => navigate("/quotes/new-from-cad")}>
-          Nueva cotización
+          Crear cotización
         </Button>
       </Box>
 

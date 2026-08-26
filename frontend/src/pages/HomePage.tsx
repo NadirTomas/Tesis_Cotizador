@@ -191,7 +191,7 @@ const HomePage = () => {
             </Box>
             <Box>
               <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 700, fontSize: "1.1rem", letterSpacing: "0.05em", color: "text.primary", textTransform: "uppercase", lineHeight: 1.1 }}>
-                Nueva Cotización
+                Crear Cotización
               </Typography>
               <Typography sx={{ fontSize: "0.82rem", color: "text.secondary", mt: 0.25 }}>
                 Cargá un DXF y generá un presupuesto completo

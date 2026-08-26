@@ -131,7 +131,7 @@ const StockPage = () => {
         </Box>
         {isOwner && (
           <Button variant="contained" startIcon={<Add />} onClick={() => setDialogOpen(true)}>
-            Nueva chapa
+            Crear chapa
           </Button>
         )}
       </Box>
@@ -208,7 +208,7 @@ const StockPage = () => {
       )}
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Nueva chapa completa</DialogTitle>
+        <DialogTitle>Crear chapa completa</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <FormControl fullWidth required>
             <InputLabel>Material</InputLabel>

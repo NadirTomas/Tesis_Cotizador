@@ -132,7 +132,7 @@ const EmployeesPage = () => {
           </Typography>
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-          Nuevo empleado
+          Crear empleado
         </Button>
       </Box>
 
@@ -172,7 +172,7 @@ const EmployeesPage = () => {
       )}
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>Nuevo empleado</DialogTitle>
+        <DialogTitle>Crear empleado</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <TextField
             label="Email"

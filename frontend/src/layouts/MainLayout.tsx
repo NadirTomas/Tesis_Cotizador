@@ -284,7 +284,7 @@ const MainLayout = () => {
             onClick={() => goTo("/quotes/new-from-cad")}
             sx={{ py: 1.1 }}
           >
-            Nueva Cotización
+            Crear Cotización
           </Button>
           <Button
             fullWidth

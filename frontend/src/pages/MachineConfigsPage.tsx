@@ -174,7 +174,7 @@ const MachineConfigsPage = () => {
           onClick={openCreate}
           disabled={materials.length === 0}
         >
-          Nueva configuración
+          Crear configuración
         </Button>
       </Box>
 
@@ -257,7 +257,7 @@ const MachineConfigsPage = () => {
 
       {/* Modal crear / editar */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
-        <DialogTitle>{editingId ? "Editar configuración" : "Nueva configuración"}</DialogTitle>
+        <DialogTitle>{editingId ? "Editar configuración" : "Crear configuración"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <FormControl fullWidth required>
             <InputLabel>Material</InputLabel>
