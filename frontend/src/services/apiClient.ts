@@ -24,3 +24,22 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   }
   return res;
 }
+
+/**
+ * El `detail` de un error de FastAPI no siempre es un string: en un 422 de
+ * validación (Pydantic) es una lista de objetos `{msg, loc, ...}`. Usar
+ * `err.detail` directo en ese caso muestra basura tipo "[object Object]" en
+ * vez del mensaje real (p. ej. "String should have at least 8 characters").
+ * Esta función normaliza ambos casos a un string legible.
+ */
+export function parseErrorDetail(body: unknown): string | undefined {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => (item && typeof item === "object" && "msg" in item ? String((item as { msg: unknown }).msg) : null))
+      .filter((msg): msg is string => !!msg);
+    if (messages.length > 0) return messages.join(" · ");
+  }
+  return undefined;
+}

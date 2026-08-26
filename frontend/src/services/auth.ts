@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { getAuthHeaders } from "./apiClient";
+import { getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 interface TokenResponse {
   access_token: string;
@@ -14,7 +14,7 @@ export async function loginRequest(email: string, password: string): Promise<Tok
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al iniciar sesión");
+    throw new Error(parseErrorDetail(err) ?? "Error al iniciar sesión");
   }
   return res.json();
 }

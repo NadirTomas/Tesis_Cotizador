@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface Placement {
   piece_id: number;
@@ -50,7 +50,7 @@ export async function calculateNesting(data: NestingRequest): Promise<NestingRes
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al calcular nesting");
+    throw new Error(parseErrorDetail(err) ?? "Error al calcular nesting");
   }
   return res.json();
 }

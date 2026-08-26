@@ -47,6 +47,7 @@ const EmployeesPage = () => {
   const [form, setForm] = useState<CompanyMemberCreate>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<CompanyMember | null>(null);
+  const passwordTooShort = form.password.length > 0 && form.password.length < 8;
 
   useEffect(() => { load(); }, [companyId]);
 
@@ -68,7 +69,7 @@ const EmployeesPage = () => {
   }
 
   async function handleSave() {
-    if (!companyId || !form.email.trim() || !form.password.trim()) return;
+    if (!companyId || !form.email.trim() || form.password.length < 8) return;
     setSaving(true);
     try {
       await createMember(companyId, form);
@@ -189,7 +190,12 @@ const EmployeesPage = () => {
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             fullWidth
             required
-            helperText="Si el email ya tiene cuenta, se ignora y se vincula la existente."
+            error={passwordTooShort}
+            helperText={
+              passwordTooShort
+                ? "Mínimo 8 caracteres."
+                : "Si el email ya tiene cuenta, se ignora y se vincula la existente."
+            }
           />
           <FormControl fullWidth>
             <InputLabel>Rol</InputLabel>
@@ -205,7 +211,7 @@ const EmployeesPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !form.email.trim() || !form.password.trim()}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !form.email.trim() || form.password.length < 8}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

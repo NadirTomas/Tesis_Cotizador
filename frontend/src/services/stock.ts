@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export type StockType = "FULL_SHEET" | "REMNANT";
 export type StockStatus = "AVAILABLE" | "RESERVED" | "CONSUMED" | "DISCARDED";
@@ -136,7 +136,7 @@ export async function createStockSheet(data: StockSheetCreate): Promise<StockShe
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al crear el stock");
+    throw new Error(parseErrorDetail(err) ?? "Error al crear el stock");
   }
   return res.json();
 }
@@ -145,7 +145,7 @@ export async function discardStockSheet(id: number): Promise<StockSheet> {
   const res = await apiFetch(`${BASE}/${id}/discard`, { method: "PATCH", headers: getAuthHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al descartar el stock");
+    throw new Error(parseErrorDetail(err) ?? "Error al descartar el stock");
   }
   return res.json();
 }
@@ -164,7 +164,7 @@ export async function recommendStock(pieceId: number, materialId: number): Promi
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "No se encontró stock disponible para esta pieza");
+    throw new Error(parseErrorDetail(err) ?? "No se encontró stock disponible para esta pieza");
   }
   return res.json();
 }
@@ -192,7 +192,7 @@ export async function reserveStock(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al reservar el material");
+    throw new Error(parseErrorDetail(err) ?? "Error al reservar el material");
   }
   return res.json();
 }
@@ -204,7 +204,7 @@ export async function releaseReservation(reservationId: number): Promise<StockRe
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al liberar la reserva");
+    throw new Error(parseErrorDetail(err) ?? "Error al liberar la reserva");
   }
   return res.json();
 }
@@ -216,7 +216,7 @@ export async function confirmCut(reservationId: number): Promise<ConfirmCutResul
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al confirmar el corte");
+    throw new Error(parseErrorDetail(err) ?? "Error al confirmar el corte");
   }
   return res.json();
 }
