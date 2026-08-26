@@ -38,6 +38,12 @@ const CompanyPage = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
+  // retazos: área en string para poder editar libremente; ancho/alto en
+  // string vacío = null (sin mínimo configurado para esa dimensión)
+  const [remnantAreaMm2, setRemnantAreaMm2] = useState("2500");
+  const [remnantWidthMm, setRemnantWidthMm] = useState("");
+  const [remnantHeightMm, setRemnantHeightMm] = useState("");
+
   // logo
   const [logoKey, setLogoKey] = useState(0); // fuerza re-fetch de la img
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -59,6 +65,9 @@ const CompanyPage = () => {
       setAddress(c.address ?? "");
       setPhone(c.phone ?? "");
       setEmail(c.email ?? "");
+      setRemnantAreaMm2(String(c.minimum_remnant_area_mm2 ?? 2500));
+      setRemnantWidthMm(c.minimum_remnant_width_mm != null ? String(c.minimum_remnant_width_mm) : "");
+      setRemnantHeightMm(c.minimum_remnant_height_mm != null ? String(c.minimum_remnant_height_mm) : "");
     } catch {
       setError("No se pudo cargar la configuración.");
     } finally {
@@ -93,6 +102,9 @@ const CompanyPage = () => {
         ...(address.trim() && { address: address.trim() }),
         ...(phone.trim() && { phone: phone.trim() }),
         ...(email.trim() && { email: email.trim() }),
+        minimum_remnant_area_mm2: Math.max(0, parseFloat(remnantAreaMm2) || 0),
+        minimum_remnant_width_mm: remnantWidthMm.trim() === "" ? null : Math.max(0, parseFloat(remnantWidthMm) || 0),
+        minimum_remnant_height_mm: remnantHeightMm.trim() === "" ? null : Math.max(0, parseFloat(remnantHeightMm) || 0),
       });
       setToast("Configuración guardada.");
     } catch {
@@ -231,6 +243,57 @@ const CompanyPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               fullWidth
               disabled={!isOwner}
+            />
+          </Box>
+        </Box>
+
+        <Divider />
+
+        <Box>
+          <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "0.75rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "text.secondary", mb: 1.5 }}>
+            Retazos
+          </Typography>
+          <Typography sx={{ fontSize: "0.78rem", color: "text.secondary", mb: 2 }}>
+            Umbrales mínimos para decidir si un fragmento de chapa se conserva como retazo o se descarta como scrap al confirmar un corte.
+          </Typography>
+          <Box display="flex" flexDirection="column" gap={2}>
+            <TextField
+              label="Área mínima (mm²)"
+              type="number"
+              value={remnantAreaMm2}
+              onChange={(e) => setRemnantAreaMm2(e.target.value)}
+              fullWidth
+              required
+              disabled={!isOwner}
+              slotProps={{ htmlInput: { min: 0, step: "1" } }}
+              helperText={
+                (() => {
+                  const n = parseFloat(remnantAreaMm2);
+                  return Number.isFinite(n) && n > 0
+                    ? `Retazos por debajo de esto se descartan · ≈ una chapa de ${Math.round(Math.sqrt(n))}×${Math.round(Math.sqrt(n))}mm`
+                    : "Retazos por debajo de esto se descartan como scrap";
+                })()
+              }
+            />
+            <TextField
+              label="Ancho mínimo (mm, opcional)"
+              type="number"
+              value={remnantWidthMm}
+              onChange={(e) => setRemnantWidthMm(e.target.value)}
+              fullWidth
+              disabled={!isOwner}
+              slotProps={{ htmlInput: { min: 0, step: "1" } }}
+              helperText="Vacío = sin mínimo de ancho"
+            />
+            <TextField
+              label="Alto mínimo (mm, opcional)"
+              type="number"
+              value={remnantHeightMm}
+              onChange={(e) => setRemnantHeightMm(e.target.value)}
+              fullWidth
+              disabled={!isOwner}
+              slotProps={{ htmlInput: { min: 0, step: "1" } }}
+              helperText="Vacío = sin mínimo de alto"
             />
           </Box>
         </Box>

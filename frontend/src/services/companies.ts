@@ -11,6 +11,9 @@ export interface Company {
   email: string | null;
   is_active: boolean;
   has_logo: boolean;
+  minimum_remnant_area_mm2: number;
+  minimum_remnant_width_mm: number | null;
+  minimum_remnant_height_mm: number | null;
   created_at: string;
 }
 
@@ -30,6 +33,9 @@ export interface CompanyUpdate {
   address?: string;
   phone?: string;
   email?: string;
+  minimum_remnant_area_mm2?: number;
+  minimum_remnant_width_mm?: number | null;
+  minimum_remnant_height_mm?: number | null;
 }
 
 export interface MyCompany {
