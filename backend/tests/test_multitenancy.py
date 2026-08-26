@@ -136,3 +136,27 @@ def test_quotation_numbering_independent_per_company():
         headers=headers_b,
     )
     assert res.json()["number"] == "COT-0001"
+
+
+def test_deactivated_company_blocks_its_members():
+    """
+    No existe ningún endpoint hoy que ponga Company.is_active en False (no
+    hay "dar de baja una empresa" implementado) -- se simula directo por
+    DB para probar que get_current_company igual bloquea el acceso, de
+    forma preventiva para el día que esa funcionalidad se agregue.
+    """
+    from app.db.session import SessionLocal
+    from app.models.company import Company
+
+    headers, company_id = _register_and_create_company("owner_deactivated@test.com", "Empresa Desactivada")
+
+    res = client.get("/clients", headers=headers)
+    assert res.status_code == 200
+
+    db = SessionLocal()
+    db.query(Company).filter(Company.id == company_id).update({"is_active": False})
+    db.commit()
+    db.close()
+
+    res = client.get("/clients", headers=headers)
+    assert res.status_code == 403

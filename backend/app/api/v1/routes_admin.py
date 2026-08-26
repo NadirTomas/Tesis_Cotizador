@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -34,7 +35,11 @@ class AdminCreateCompanyResponse(BaseModel):
 
 
 def _require_admin_secret(x_admin_secret: str = Header(..., alias="X-Admin-Secret")) -> None:
-    if not settings.ADMIN_SECRET or x_admin_secret != settings.ADMIN_SECRET:
+    # hmac.compare_digest en vez de != : comparación en tiempo constante,
+    # evita un timing attack teórico contra este endpoint de onboarding
+    # (ya mitigado en la práctica por el rate limit de 5/min, pero el fix
+    # es gratis).
+    if not settings.ADMIN_SECRET or not hmac.compare_digest(x_admin_secret, settings.ADMIN_SECRET):
         raise HTTPException(status_code=403, detail="No autorizado")
 
 
