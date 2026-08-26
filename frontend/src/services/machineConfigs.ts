@@ -8,6 +8,8 @@ export interface MachineConfig {
   machine_cost_per_hour_ars: number;
   setup_time_min: number;
   labor_percent: number;
+  kerf_mm: number;
+  minimum_spacing_mm: number;
   active: boolean;
 }
 
@@ -17,6 +19,8 @@ export interface MachineConfigCreate {
   machine_cost_per_hour_ars: number;
   setup_time_min: number;
   labor_percent?: number;
+  kerf_mm?: number;
+  minimum_spacing_mm?: number;
 }
 
 export interface MachineConfigUpdate {
@@ -24,6 +28,8 @@ export interface MachineConfigUpdate {
   machine_cost_per_hour_ars?: number;
   setup_time_min?: number;
   labor_percent?: number;
+  kerf_mm?: number;
+  minimum_spacing_mm?: number;
   active?: boolean;
 }
 

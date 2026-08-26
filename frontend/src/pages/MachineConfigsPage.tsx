@@ -43,6 +43,8 @@ const EMPTY_FORM: MachineConfigCreate = {
   machine_cost_per_hour_ars: 0,
   setup_time_min: 0,
   labor_percent: 30,
+  kerf_mm: 0,
+  minimum_spacing_mm: 0,
 };
 
 const MachineConfigsPage = () => {
@@ -99,12 +101,16 @@ const MachineConfigsPage = () => {
       machine_cost_per_hour_ars: c.machine_cost_per_hour_ars,
       setup_time_min: c.setup_time_min,
       labor_percent: c.labor_percent,
+      kerf_mm: c.kerf_mm,
+      minimum_spacing_mm: c.minimum_spacing_mm,
     });
     setDialogOpen(true);
   }
 
-  function handleNum(field: keyof MachineConfigCreate, value: string) {
-    setForm((prev) => ({ ...prev, [field]: parseFloat(value) || 0 }));
+  function handleNum(field: keyof MachineConfigCreate, value: string, min = -Infinity) {
+    const parsed = parseFloat(value);
+    const safe = Number.isNaN(parsed) ? 0 : parsed;
+    setForm((prev) => ({ ...prev, [field]: Math.max(min, safe) }));
   }
 
   async function handleSave() {
@@ -191,6 +197,8 @@ const MachineConfigsPage = () => {
                 <TableCell align="right">Costo/hora (ARS)</TableCell>
                 <TableCell align="right">Setup (min)</TableCell>
                 <TableCell align="right">MO (%)</TableCell>
+                <TableCell align="right">Kerf (mm)</TableCell>
+                <TableCell align="right">Sep. mín. (mm)</TableCell>
                 <TableCell align="center">Acciones</TableCell>
               </TableRow>
             </TableHead>
@@ -214,6 +222,12 @@ const MachineConfigsPage = () => {
                   </TableCell>
                   <TableCell align="right">
                     <span className="mono" style={{ color: "#FF6B00" }}>{c.labor_percent}%</span>
+                  </TableCell>
+                  <TableCell align="right">
+                    <span className="mono">{c.kerf_mm}</span>
+                  </TableCell>
+                  <TableCell align="right">
+                    <span className="mono">{c.minimum_spacing_mm}</span>
                   </TableCell>
                   <TableCell align="center">
                     <IconButton size="small" onClick={() => openEdit(c)}>
@@ -290,6 +304,24 @@ const MachineConfigsPage = () => {
             onChange={(e) => handleNum("labor_percent", e.target.value)}
             fullWidth required
             helperText="Porcentaje sobre el costo de máquina"
+          />
+          <TextField
+            label="Kerf (mm)"
+            type="number"
+            value={form.kerf_mm}
+            onChange={(e) => handleNum("kerf_mm", e.target.value, 0)}
+            slotProps={{ htmlInput: { min: 0, step: "0.1" } }}
+            fullWidth
+            helperText="Ancho aproximado de material removido por el láser."
+          />
+          <TextField
+            label="Separación mínima (mm)"
+            type="number"
+            value={form.minimum_spacing_mm}
+            onChange={(e) => handleNum("minimum_spacing_mm", e.target.value, 0)}
+            slotProps={{ htmlInput: { min: 0, step: "0.1" } }}
+            fullWidth
+            helperText="Distancia de seguridad entre piezas/contornos usada en colocación y stock."
           />
         </DialogContent>
         <DialogActions>
