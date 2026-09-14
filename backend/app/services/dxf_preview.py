@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use("Agg")  # sin GUI, siempre antes de importar pyplot
 import matplotlib.pyplot as plt
 import ezdxf
+from ezdxf import recover
 from ezdxf.addons.drawing import Frontend, RenderContext
 from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
 
@@ -21,7 +22,15 @@ def generate_dxf_preview(dxf_path: str, output_path: str, size_px: int = 500) ->
     Fondo blanco, líneas oscuras (apto para PDF).
     Devuelve output_path.
     """
-    doc = ezdxf.readfile(dxf_path)
+    # Mismo fallback de 2 niveles que ya usan analyze_dxf()/get_bounding_box()/
+    # extract_piece_polygon() (dxf_analysis.py) -- readfile() directo rechaza
+    # algunos DXF con errores estructurales menores que recover.readfile() sí
+    # tolera. Sin esto, una pieza cuya geometría se analiza y cotiza bien
+    # podía quedarse sin thumbnail en silencio.
+    try:
+        doc = ezdxf.readfile(dxf_path)
+    except Exception:
+        doc, _auditor = recover.readfile(dxf_path)
     msp = doc.modelspace()
 
     dpi = 150

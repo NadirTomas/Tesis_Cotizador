@@ -4,17 +4,16 @@ Cobertura de dxf_preview.py — antes de este archivo, cero tests dedicados
 del flujo crítico de carga de piezas (routes_pieces.py::_process_dxf_upload
 genera el preview inmediatamente después de analizar el DXF).
 
-Encontrado escribiendo estos tests, documentado pero NO corregido (ver
-test_recover_level_dxf_currently_has_no_fallback_and_loses_preview):
-generate_dxf_preview() solo intenta ezdxf.readfile() -- a diferencia de
-analyze_dxf()/get_bounding_box()/extract_piece_polygon(), que tienen un
-fallback de 2-3 niveles (readfile -> recover.readfile -> parser manual).
-Un DXF con errores estructurales menores, recuperable por ezdxf.recover,
-analiza y cotiza bien pero pierde su preview en silencio -- mismo patrón
-que el incidente histórico de get_bounding_box() (PROJECT_MEMORY.md §7,
-corregido en 3199c15), nunca alineado acá. No es bloqueante (el caller en
-routes_pieces.py ya lo trata como no-crítico, preview_data=None), pero es
-una pérdida de UX real para DXF reales con errores menores.
+Bug encontrado escribiendo la primera versión de estos tests, corregido
+en un commit separado: generate_dxf_preview() solo intentaba
+ezdxf.readfile() -- a diferencia de analyze_dxf()/get_bounding_box()/
+extract_piece_polygon(), que ya tenían un fallback a ezdxf.recover
+(mismo patrón que el incidente histórico de get_bounding_box(),
+PROJECT_MEMORY.md §7, corregido en 3199c15). Un DXF con errores
+estructurales menores analizaba y cotizaba bien pero perdía su preview
+en silencio. Ahora generate_dxf_preview() tiene el mismo fallback de 2
+niveles (readfile -> recover.readfile); ver
+test_recover_level_dxf_now_falls_back_and_generates_preview.
 """
 
 from pathlib import Path
@@ -181,22 +180,19 @@ def test_nonexistent_input_file_raises(tmp_path):
         generate_dxf_preview(str(tmp_path / "no_existe.dxf"), str(tmp_path / "out.png"))
 
 
-# ---------- bug encontrado, documentado sin corregir (ver docstring del módulo) ----------
+# ---------- fallback a recover.readfile() (fix del bug encontrado) ----------
 
 
-def test_recover_level_dxf_currently_has_no_fallback_and_loses_preview(tmp_path, monkeypatch):
+def test_recover_level_dxf_now_falls_back_and_generates_preview(tmp_path, monkeypatch):
     """
-    HALLAZGO, NO CORREGIDO TODAVÍA (pendiente de aprobación explícita):
-    un DXF con un error estructural menor -- del tipo que
-    ezdxf.recover.readfile() sabe recuperar -- se analiza y cotiza
-    perfectamente bien (analyze_dxf usa ese mismo nivel de fallback), pero
-    generate_dxf_preview() SOLO prueba ezdxf.readfile() directo, sin
-    intentar recover ni ningún otro nivel, así que pierde el preview en
-    silencio para el mismo archivo. Mismo patrón que el incidente
-    histórico de get_bounding_box() (PROJECT_MEMORY.md §7), nunca
-    alineado acá. Este test fija el comportamiento ACTUAL (falla), no lo
-    valida como correcto -- si se decide arreglarlo, este test pasa a
-    esperar éxito en vez de excepción.
+    Antes del fix: un DXF con un error estructural menor -- del tipo que
+    ezdxf.recover.readfile() sabe recuperar -- se analizaba y cotizaba
+    perfectamente bien (analyze_dxf ya usaba ese nivel de fallback), pero
+    generate_dxf_preview() solo probaba ezdxf.readfile() directo y perdía
+    el preview en silencio para el mismo archivo. Ahora tiene el mismo
+    fallback de 2 niveles que analyze_dxf()/get_bounding_box()/
+    extract_piece_polygon() -- este test confirma que, forzando el mismo
+    tipo de fallo, el preview SÍ se genera correctamente vía recover.
     """
     import app.services.dxf_preview as preview_module
 
@@ -211,18 +207,39 @@ def test_recover_level_dxf_currently_has_no_fallback_and_loses_preview(tmp_path,
 
     monkeypatch.setattr(preview_module.ezdxf, "readfile", _boom)
 
-    with pytest.raises(Exception):
-        generate_dxf_preview(dxf_path, out_path)
-    assert not Path(out_path).exists()
+    result = generate_dxf_preview(dxf_path, out_path)
+
+    assert result == out_path
+    with Image.open(out_path) as img:
+        img.verify()
 
     # Prueba de contraste: el MISMO archivo, con el MISMO tipo de fallo
-    # forzado, sí se analiza correctamente vía el fallback a recover que
-    # analyze_dxf() sí tiene -- confirma que el problema es específico de
-    # generate_dxf_preview(), no del archivo en sí.
+    # forzado, también se analiza correctamente vía el fallback a recover
+    # que analyze_dxf() ya tenía -- confirma que ambos caminos ahora se
+    # recuperan igual, no que el preview "de casualidad" funcionó.
     import app.services.dxf_analysis as analysis_module
     monkeypatch.setattr(analysis_module.ezdxf, "readfile", _boom)
     length, area = analysis_module.analyze_dxf(dxf_path)
     assert area == pytest.approx(100 * 50)
+
+
+def test_truly_corrupt_dxf_still_fails_even_with_recover_fallback(tmp_path):
+    """
+    El fallback nuevo tiene un límite real: contenido que no es DXF en
+    absoluto (no solo "readfile estricto lo rechaza") tampoco lo puede
+    recuperar ezdxf.recover.readfile() -- generate_dxf_preview() debe
+    seguir lanzando en ese caso, para que el caller lo siga tratando como
+    no-crítico (mismo contrato de test_corrupt_file_with_dxf_extension_raises,
+    repetido acá explícitamente después del fix para no asumir que
+    "ahora todo se recupera").
+    """
+    path = tmp_path / "truly_corrupt.dxf"
+    path.write_bytes(b"\x00\x01\x02 esto no es un dxf en absoluto \xff\xfe" * 20)
+    out_path = str(tmp_path / "truly_corrupt.png")
+
+    with pytest.raises(Exception):
+        generate_dxf_preview(str(path), out_path)
+    assert not Path(out_path).exists()
 
 
 # ---------- integración real: carga de pieza vía API -> has_preview -> endpoint ----------
@@ -267,14 +284,13 @@ def test_piece_upload_sets_has_preview_and_serves_real_png(tmp_path):
     assert len(preview_res.content) > 0
 
 
-def test_piece_with_recover_level_dxf_has_no_preview_but_piece_still_created(tmp_path, monkeypatch):
+def test_piece_with_recover_level_dxf_gets_preview_after_fix(tmp_path, monkeypatch):
     """
-    Consecuencia real, de punta a punta, del hallazgo documentado arriba:
-    un DXF recuperable por analyze_dxf() pero no por generate_dxf_preview()
-    crea la pieza igual (con geometría correcta), pero has_preview queda
-    en False -- el caller (_process_dxf_upload) ya trata esto como no
-    bloqueante, confirmado acá contra el endpoint real, no solo en el
-    unit test de la función aislada.
+    Consecuencia real, de punta a punta, del fix: un DXF recuperable solo
+    vía ezdxf.recover ahora crea la pieza con geometría correcta Y con
+    preview generado (antes del fix, has_preview quedaba en False para
+    este mismo caso -- ver el commit del fix para el test que documentaba
+    el bug).
     """
     import app.services.dxf_preview as preview_module
 
@@ -292,11 +308,15 @@ def test_piece_with_recover_level_dxf_has_no_preview_but_piece_still_created(tmp
     with open(dxf_path, "rb") as fh:
         res = client.post(
             "/pieces",
-            data={"name": "Pieza sin preview"},
+            data={"name": "Pieza con preview via recover"},
             files={"file": ("recoverable.dxf", fh.read(), "application/dxf")},
             headers=headers,
         )
     assert res.status_code == 200
     piece = res.json()
-    assert piece["has_preview"] is False
-    assert piece["area_mm2"] == pytest.approx(60 * 30)  # analyze_dxf sí se recuperó bien
+    assert piece["has_preview"] is True
+    assert piece["area_mm2"] == pytest.approx(60 * 30)
+
+    preview_res = client.get(f"/pieces/{piece['id']}/preview", headers=headers)
+    assert preview_res.status_code == 200
+    assert preview_res.headers["content-type"] == "image/png"
