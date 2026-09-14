@@ -179,17 +179,31 @@ Fuente de verdad real: `backend/app/services/quotation_calculator.py`.
 
 ```
 costo_material = (piece.area_mm2 / (sheet_width_mm * sheet_height_mm)) * sheet_cost_ars * quantity
-tiempo_por_unidad_h = (piece.length_cut_mm / cut_speed_mm_min + setup_time_min) / 60
-costo_maquina = tiempo_por_unidad_h * machine_cost_per_hour_ars * quantity
+tiempo_corte_total_h = (piece.length_cut_mm * quantity) / cut_speed_mm_min
+costo_maquina = ((tiempo_corte_total_h + setup_time_min) / 60) * machine_cost_per_hour_ars
 costo_labor = costo_maquina * (labor_percent / 100)
 unit_price = ((costo_material + costo_maquina + costo_labor) / quantity) * (1 + margin_percent / 100)
 total_price = unit_price * quantity
 total_usd = total_ars / exchange_rate   (si exchange_rate está seteado y es > 0; si no, 0)
 ```
 
-### Pendiente de decisión de negocio: `setup_time_min`
+### `setup_time_min` — resuelto 2026-09-14 (antes: pendiente de decisión de negocio)
 
-Hoy se cobra **por unidad** (dentro del tiempo por pieza, antes de multiplicar por `quantity`), no una sola vez por corrida. Este comportamiento está preservado y testeado explícitamente (`test_setup_time_is_charged_once_per_unit_not_once_per_job`, agosto de 2026) para que no se cambie por accidente en una refactorización futura — pero **sigue sin validar con Cortesar** si la interpretación correcta es por unidad, por lote, o por trabajo/corrida completa. No elegir automáticamente; es una decisión comercial, no técnica.
+**Comportamiento anterior** (hasta el 2026-09-14): se cobraba **por unidad** — `setup_time_min` se sumaba dentro del tiempo por pieza, antes de multiplicar por `quantity`, así que un ítem de 5 unidades cobraba 5 veces el tiempo de preparación. Preservado deliberadamente así hasta tener validación de negocio (`test_setup_time_is_charged_once_per_unit_not_once_per_job`, agosto de 2026).
+
+**Confirmado con Cortesar el 2026-09-14**: el setup de la máquina se realiza **una sola vez por lote/trabajo**, no una vez por cada pieza — ejemplo dado: 5 piezas + 10 minutos de setup = 15 minutos totales de máquina, no 50. Fórmula corregida en consecuencia (ver arriba); el tiempo de corte sí sigue escalando con `quantity`, solo el setup pasa a sumarse una única vez. `cost_machine_ars`/`cost_material_ars`/`cost_labor_ars` en `QuotationItem` siguen representando el costo **total del ítem** (agregado de las `quantity` unidades, no un valor unitario) — la semántica pública de esos campos no cambió, solo cómo se calcula internamente `cost_machine_ars`. Test que documentaba la regla vieja reemplazado por `test_setup_time_is_charged_once_per_job` + `test_cortesar_example_five_pieces_ten_minute_setup` (el ejemplo exacto de arriba) + `test_setup_time_zero_is_not_a_regression`.
+
+**Cotizaciones históricas** (`sent`/`accepted`/`cancelled`): **no se tocaron** — `QuotationItem` congela su snapshot de costos al crearse/editarse, y solo se recalcula en `draft` (mismo mecanismo ya verificado para el P0 del backfill de DXF). Ningún dato de producción fue modificado por este cambio.
+
+**Drafts existentes en producción al momento del cambio** (2026-09-14, análisis de solo lectura vía `railway run`, sin escribir nada):
+
+| Cotización | Ítem | Cantidad | Setup | Precio actual | Precio con fórmula nueva | Diferencia | % |
+|---|---|---|---|---|---|---|---|
+| COT-0001 (id=8) | — sin ítems — | — | — | — | — | — | — |
+| COT-0002 (id=9) | item_id=17 | 1 | 0 min | $29.868,80 | $29.868,80 | $0,00 | 0,00% |
+| COT-0008 (id=11) | item_id=19 | 4 | 10 min | $19.369,34 | $5.329,34 | **-$14.040,00** | **-72,49%** |
+
+Solo 1 de los 3 drafts existentes se ve afectado (el que tiene `setup_time_min > 0` y `quantity > 1`); el otro no cambia porque su `MachineConfig` tiene `setup_time_min=0`. **Ninguno de estos drafts fue recalculado todavía** — el análisis fue puramente de lectura, para dimensionar el impacto antes de decidir si conviene recalcularlos automáticamente o dejarlos para que se actualicen solos cuando alguien edite el ítem (que ya dispara `calculate_quotation_item()` con la fórmula nueva).
 
 ---
 
@@ -402,7 +416,7 @@ Ninguno de estos forma parte del sistema estable hasta que se commiteen explíci
 | Una `StockReservation` ACTIVE por chapa | Enfoque simple/seguro sobre uno más expresivo | Vigente |
 | Admin-secret-gated onboarding, sin signup público | No se quiso una página de registro pública | Vigente |
 | Observabilidad self-hosted, sin Sentry | Decisión explícita del usuario | Vigente |
-| `setup_time_min` por unidad | Comportamiento heredado desde el motor de costeo original | **Pendiente de validar con Cortesar** |
+| `setup_time_min` una sola vez por lote/trabajo | Confirmado con Cortesar 2026-09-14 (antes se cobraba por unidad, por error) | Vigente |
 
 ---
 

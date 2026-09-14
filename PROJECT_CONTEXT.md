@@ -197,14 +197,14 @@ Tesis_Cotizador/
 
 ```
 costo_material = (piece.area_mm2 / (material.sheet_width_mm * material.sheet_height_mm)) * material.sheet_cost_ars * quantity
-tiempo_por_pieza_h = (piece.length_cut_mm / machine_config.cut_speed_mm_min + machine_config.setup_time_min) / 60
-costo_maquina = tiempo_por_pieza_h * machine_config.machine_cost_per_hour_ars * quantity
+tiempo_corte_total_h = (piece.length_cut_mm * quantity) / machine_config.cut_speed_mm_min
+costo_maquina = ((tiempo_corte_total_h + machine_config.setup_time_min) / 60) * machine_config.machine_cost_per_hour_ars
 costo_labor = costo_maquina * (machine_config.labor_percent / 100)
 unit_price = ((costo_material + costo_maquina + costo_labor) / quantity) * (1 + margin_percent / 100)
 total_price = unit_price * quantity
 ```
 
-Nota: `setup_time_min` se cobra **por unidad** (dentro del tiempo por pieza, multiplicado por `quantity`), no una sola vez por corrida. **Comportamiento actual documentado y testeado tal cual está (`test_setup_time_is_charged_once_per_unit_not_once_per_job`), no modificado.** Pendiente de validación con Cortesar: confirmar si `setup_time_min` corresponde por unidad, por lote/tipo de pieza, o por trabajo completo.
+**`setup_time_min` — decisión de negocio confirmada con Cortesar el 2026-09-14**: se cobra **una sola vez por lote/trabajo**, no por unidad. El tiempo de corte sí escala con `quantity`. Antes del 2026-09-14 el setup se sumaba dentro del tiempo por unidad y terminaba multiplicado por `quantity` — comportamiento incorrecto, ya corregido. Ver `PROJECT_MEMORY.md` §6 para el detalle completo (fórmula anterior, impacto, y el análisis de solo lectura de los drafts existentes en producción al momento del cambio).
 
 `quotation.total_ars` se recalcula sumando **todos** los ítems cada vez que se crea/edita uno; si hay `exchange_rate` seteado, `total_usd = total_ars / exchange_rate`.
 
@@ -225,7 +225,7 @@ Nota: `setup_time_min` se cobra **por unidad** (dentro del tiempo por pieza, mul
 | 8 (nuevo) | BAJO | `routes_pieces.py` crasheaba (500 sin traceback expuesto, pero sin loguear tampoco) al subir un DXF con extensión inválida — `extra={"filename": ...}` colisiona con un atributo reservado de `LogRecord` | ✅ **Corregido**, encontrado escribiendo tests de DXF |
 | 9 (nuevo) | BAJO | `_require_admin_secret` comparaba con `!=` en vez de tiempo constante | ✅ **Corregido** (`hmac.compare_digest`) |
 | — | — | `Company.is_active` no se validaba en `get_current_company` | ✅ **Corregido**, defensivo — hoy no existe ningún endpoint que pueda desactivar una empresa |
-| — | PENDIENTE DE NEGOCIO | `setup_time_min` por unidad vs. por corrida — comportamiento actual preservado y testeado, no se decidió unilateralmente | Ver §6, confirmar con Cortesar |
+| — | MEDIO | `setup_time_min` por unidad vs. por corrida — cobraba el setup multiplicado por `quantity` | ✅ **Corregido 2026-09-14**, confirmado con Cortesar (una sola vez por lote/trabajo). Ver §6 |
 
 ---
 
@@ -265,7 +265,7 @@ Verificado campo por campo (Pydantic vs. TypeScript) para Materials, MachineConf
 
 ## Limitaciones conocidas / decisiones pendientes
 
-- `setup_time_min` por unidad vs. por corrida completa — pendiente de validación con Cortesar (ver §6). Comportamiento actual preservado y testeado explícitamente, no se asumió ni un lado ni el otro.
+- ~~`setup_time_min` por unidad vs. por corrida completa~~ — **resuelto 2026-09-14**, Cortesar confirmó "una sola vez por lote/trabajo". Fórmula corregida (ver §6). Cotizaciones históricas (`sent`/`accepted`/`cancelled`) quedan con su snapshot congelado, sin recalcular. Los drafts existentes en producción al momento del cambio se analizaron aparte, en modo solo lectura — ver `PROJECT_MEMORY.md` §6, todavía no se decidió si se recalculan automáticamente.
 - Nesting de planificación (`nesting.py`, bin-packing rectangular sobre bounding box) queda deliberadamente separado del motor real de stock (`stock_placement.py`/`stock_recommendation.py`/`stock_cut.py`, geometría real con huecos) — son dos problemas distintos (planificación *what-if* vs. trazabilidad de inventario), no se unificaron.
 - Trazabilidad de reserva de stock: hoy es por ítem de cotización, no por unidad física individual cortada (un ítem con `quantity=5` genera una sola `StockReservation`, no cinco).
 - Paginación 100% client-side en todos los listados — no hay paginación server-side en ningún endpoint.

@@ -4,11 +4,17 @@ ejercitaba indirectamente vía el flujo E2E y test_audit_fixes.py
 (1 caso de recálculo). Fórmula real (calculate_quotation_item):
 
     costo_material = (piece.area_mm2 / (sheet_width_mm * sheet_height_mm)) * sheet_cost_ars * quantity
-    tiempo_por_unidad_h = (piece.length_cut_mm / cut_speed_mm_min + setup_time_min) / 60
-    costo_maquina = tiempo_por_unidad_h * machine_cost_per_hour_ars * quantity
+    tiempo_corte_total_h = (piece.length_cut_mm * quantity) / cut_speed_mm_min
+    costo_maquina = ((tiempo_corte_total_h + setup_time_min) / 60) * machine_cost_per_hour_ars
     costo_labor = costo_maquina * (labor_percent / 100)
     unit_price = ((costo_material + costo_maquina + costo_labor) / quantity) * (1 + margin_percent / 100)
     total_price = unit_price * quantity
+
+setup_time_min se cobra UNA sola vez por lote/trabajo, no por unidad
+-- confirmado con Cortesar el 2026-09-14 (antes del 2026-09-14 se
+cobraba por unidad, ver test_setup_time_is_charged_once_per_job y
+PROJECT_MEMORY.md para el historial de la decisión). El tiempo de
+corte sí escala con quantity.
 
 Los tests fijan piece.area_mm2/length_cut_mm directo por DB (en vez de
 depender de que un DXF particular produzca un valor exacto) para poder
@@ -161,16 +167,16 @@ def test_cost_breakdown_matches_formula_for_quantity_one():
     assert item["total_price_ars"] == pytest.approx(10_910.0)
 
 
-def test_quantity_scales_total_but_not_unit_price_without_margin_change():
+def test_quantity_scales_material_linearly_but_amortizes_setup_over_machine_cost():
     """
-    setup_time_min entra en el tiempo POR UNIDAD antes de multiplicar por
-    quantity -- confirma exactamente el comportamiento ya señalado en la
-    auditoría (pendiente de validar con Cortesar, ver test dedicado más
-    abajo): con margen fijo, el unit_price NO cambia con la cantidad,
-    porque material y máquina escalan linealmente y se vuelven a dividir
-    por quantity. Documentado, no modificado.
+    Material SÍ escala linealmente con quantity (no depende de setup).
+    Máquina ya NO escala linealmente -- el corte escala, pero el setup se
+    cobra una sola vez y se reparte entre más unidades, así que
+    unit_price BAJA al aumentar quantity (antes del 2026-09-14 se
+    mantenía constante, porque el setup también escalaba ×quantity; ver
+    PROJECT_MEMORY.md para el historial de la decisión de negocio).
     """
-    headers, _company_id, material_id = _full_setup()
+    headers, _company_id, material_id = _full_setup()  # setup_time_min=5, cut_speed=1000, rate=6000
     piece_id = _create_piece(headers, material_id, area_mm2=100_000.0, length_cut_mm=2000.0)
     client_id = _create_client_record(headers)
     quotation_id = _create_quotation(headers, client_id)
@@ -179,10 +185,22 @@ def test_quantity_scales_total_but_not_unit_price_without_margin_change():
     quotation_id_2 = _create_quotation(headers, client_id)
     res_qty3 = _add_item(headers, quotation_id_2, piece_id, material_id, quantity=3, margin_percent=0.0)
 
-    assert res_qty1.json()["unit_price_ars"] == pytest.approx(res_qty3.json()["unit_price_ars"])
-    assert res_qty3.json()["total_price_ars"] == pytest.approx(res_qty1.json()["unit_price_ars"] * 3)
-    assert res_qty3.json()["cost_material_ars"] == pytest.approx(res_qty1.json()["cost_material_ars"] * 3)
-    assert res_qty3.json()["cost_machine_ars"] == pytest.approx(res_qty1.json()["cost_machine_ars"] * 3)
+    item1, item3 = res_qty1.json(), res_qty3.json()
+
+    # material: escala linealmente, sin cambios
+    assert item3["cost_material_ars"] == pytest.approx(item1["cost_material_ars"] * 3)
+
+    # máquina: corte×3 (2000*3/1000=6 min) + setup UNA vez (5 min) = 11 min
+    # -> (11/60)*6000 = 1100, NO 700*3=2100
+    assert item1["cost_machine_ars"] == pytest.approx(700.0)
+    assert item3["cost_machine_ars"] == pytest.approx(1100.0)
+    assert item3["cost_machine_ars"] != pytest.approx(item1["cost_machine_ars"] * 3)
+
+    # por lo tanto unit_price baja al aumentar quantity (setup amortizado
+    # entre más unidades) -- ya NO se mantiene constante como antes.
+    assert item3["unit_price_ars"] < item1["unit_price_ars"]
+    assert item1["unit_price_ars"] == pytest.approx(10_910.0)  # 10000+700+210, qty=1
+    assert item3["unit_price_ars"] == pytest.approx((30_000.0 + 1100.0 + 330.0) / 3)  # 10476.666...
 
 
 def test_positive_margin_applies_over_full_cost_base():
@@ -198,15 +216,14 @@ def test_positive_margin_applies_over_full_cost_base():
     assert item["total_price_ars"] == pytest.approx(item["unit_price_ars"] * 3)
 
 
-def test_setup_time_is_charged_once_per_unit_not_once_per_job():
+def test_setup_time_is_charged_once_per_job():
     """
-    PENDIENTE DE VALIDACIÓN DE NEGOCIO (no modificar sin confirmación):
-    setup_time_min se suma DENTRO del tiempo por unidad, antes de
-    multiplicar por quantity -- así que un ítem de 5 unidades cobra 5 veces
-    el tiempo de preparación, no una sola vez por la corrida completa. Este
-    test documenta el comportamiento actual tal cual está, no lo valida
-    como correcto ni lo cambia. Confirmar con Cortesar si setup_time_min
-    debería ser por unidad, por lote, o por trabajo completo.
+    Confirmado con Cortesar el 2026-09-14: setup_time_min se cobra UNA
+    sola vez por lote/trabajo, no una vez por cada unidad. El tiempo de
+    corte sí escala con quantity. Antes de esta fecha, el setup se
+    sumaba dentro del tiempo por unidad y terminaba multiplicado por
+    quantity -- comportamiento incorrecto, ya corregido (ver
+    PROJECT_MEMORY.md para el historial completo de la decisión).
     """
     headers, _company_id, material_id = _full_setup()  # setup_time_min=5, machine_cost_per_hour_ars=6000
     piece_id = _create_piece(headers, material_id, area_mm2=0.0, length_cut_mm=2000.0)
@@ -217,15 +234,71 @@ def test_setup_time_is_charged_once_per_unit_not_once_per_job():
     quotation_5 = _create_quotation(headers, client_id)
     res_5 = _add_item(headers, quotation_5, piece_id, material_id, quantity=5)
 
-    # tiempo por unidad = (2000/1000 + 5) / 60 h = 7/60 h -> costo = (7/60)*6000 = 700
+    # qty=1: (2000*1/1000 + 5) / 60 h = 7/60 h -> costo = (7/60)*6000 = 700
+    # qty=5: (2000*5/1000 + 5) / 60 h = 15/60 h -> costo = (15/60)*6000 = 1500
     cost_machine_1_unit = res_1.json()["cost_machine_ars"]
     cost_machine_5_units = res_5.json()["cost_machine_ars"]
     assert cost_machine_1_unit == pytest.approx(700.0)
-    assert cost_machine_5_units == pytest.approx(700.0 * 5), (
-        "comportamiento actual: el setup (incluido en el tiempo por unidad) se "
-        "cobra una vez POR UNIDAD, no una vez por la corrida completa -- si esto "
-        "cambia, este test debe actualizarse junto con la confirmación de negocio"
+    assert cost_machine_5_units == pytest.approx(1500.0), (
+        "el setup (5 min) se cobra una sola vez -- no 700*5=3500, "
+        "sino (2000*5/1000 + 5)/60 * 6000 = 1500"
     )
+
+
+def test_cortesar_example_five_pieces_ten_minute_setup():
+    """
+    Ejemplo exacto confirmado con Cortesar el 2026-09-14: 5 piezas,
+    1 minuto de corte cada una, 10 minutos de setup -> 15 minutos
+    totales de máquina, no 5*(1+10)=55. Arma el escenario a mano (no
+    reusa _full_setup) porque necesita setup_time_min=10, no el default.
+    """
+    _reset_db_file()
+    init_db()
+    headers, _company_id = _register_and_create_company("owner_calc_cortesar@test.com", "Empresa Cortesar")
+    material_id = _create_material(headers, sheet_cost_ars=0.0)  # material en 0 para aislar el costo de máquina
+    _create_machine_config(
+        headers, material_id,
+        cut_speed_mm_min=1000.0, machine_cost_per_hour_ars=6000.0,
+        setup_time_min=10.0, labor_percent=0.0,
+    )
+    piece_id = _create_piece(headers, material_id, area_mm2=0.0, length_cut_mm=1000.0)
+    client_id = _create_client_record(headers)
+    quotation_id = _create_quotation(headers, client_id)
+
+    res = _add_item(headers, quotation_id, piece_id, material_id, quantity=5, margin_percent=0.0)
+    item = res.json()
+
+    # tiempo total = 1*5 + 10 = 15 min -> costo = 15/60 * 6000 = 1500
+    assert item["cost_machine_ars"] == pytest.approx(1500.0)
+    assert item["cost_material_ars"] == pytest.approx(0.0)
+    assert item["cost_labor_ars"] == pytest.approx(0.0)  # labor_percent=0
+    assert item["total_price_ars"] == pytest.approx(1500.0)
+
+
+def test_setup_time_zero_is_not_a_regression():
+    """setup_time_min=0 debe dar el mismo resultado con la fórmula vieja o
+    nueva -- el setup no contribuye nada en ninguna de las dos."""
+    _reset_db_file()
+    init_db()
+    headers, _company_id = _register_and_create_company("owner_calc_zerosetup@test.com", "Empresa ZeroSetup")
+    material_id = _create_material(headers)
+    _create_machine_config(
+        headers, material_id,
+        cut_speed_mm_min=1000.0, machine_cost_per_hour_ars=6000.0,
+        setup_time_min=0.0, labor_percent=30.0,
+    )
+    piece_id = _create_piece(headers, material_id, area_mm2=0.0, length_cut_mm=2000.0)
+    client_id = _create_client_record(headers)
+
+    quotation_1 = _create_quotation(headers, client_id)
+    res_1 = _add_item(headers, quotation_1, piece_id, material_id, quantity=1)
+    quotation_5 = _create_quotation(headers, client_id)
+    res_5 = _add_item(headers, quotation_5, piece_id, material_id, quantity=5)
+
+    # sin setup, el costo de máquina escala linealmente con quantity, tal
+    # cual como cualquiera de las dos fórmulas predeciría en este caso.
+    assert res_1.json()["cost_machine_ars"] == pytest.approx(200.0)  # (2000/1000)/60*6000
+    assert res_5.json()["cost_machine_ars"] == pytest.approx(1000.0)  # 200*5
 
 
 # ---------- área/longitud en cero (pieza sin geometría útil, ej. un círculo mal leído) ----------

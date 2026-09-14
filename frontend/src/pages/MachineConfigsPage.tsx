@@ -295,7 +295,7 @@ const MachineConfigsPage = () => {
             value={form.setup_time_min}
             onChange={(e) => handleNum("setup_time_min", e.target.value)}
             fullWidth required
-            helperText="Tiempo de preparación por trabajo"
+            helperText="Tiempo de preparación de la máquina, aplicado una sola vez por lote/trabajo (no se multiplica por la cantidad de piezas)"
           />
           <TextField
             label="Mano de obra (%)"

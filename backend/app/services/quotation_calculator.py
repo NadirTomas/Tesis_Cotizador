@@ -42,14 +42,14 @@ def compute_item_costs(
 
     cost_machine_total = 0.0
     if length_cut_mm and length_cut_mm > 0:
-        tiempo_corte_min = length_cut_mm / machine_config.cut_speed_mm_min
+        # setup_time_min se cobra UNA sola vez por lote/trabajo, no por
+        # unidad -- confirmado con Cortesar el 2026-09-14. El tiempo de
+        # corte sí escala con quantity (cada unidad se corta individualmente).
+        tiempo_corte_total_min = (length_cut_mm * quantity) / machine_config.cut_speed_mm_min
         tiempo_total_horas = (
-            tiempo_corte_min + machine_config.setup_time_min
+            tiempo_corte_total_min + machine_config.setup_time_min
         ) / 60.0
-        costo_maquina_unitario = (
-            tiempo_total_horas * machine_config.machine_cost_per_hour_ars
-        )
-        cost_machine_total = costo_maquina_unitario * quantity
+        cost_machine_total = tiempo_total_horas * machine_config.machine_cost_per_hour_ars
 
     cost_labor = cost_machine_total * (machine_config.labor_percent / 100)
 
