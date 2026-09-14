@@ -180,6 +180,7 @@ Tesis_Cotizador/
 
 ### Backend
 - [ ] Tests contra un motor que enforce foreign keys reales para el resto de la suite (hoy solo los 2 archivos Postgres-only lo hacen explícitamente; SQLite ya tiene `PRAGMA foreign_keys=ON` activado globalmente en `db/session.py`, así que esto ya mejoró de forma transversal)
+- [ ] `PUT /stock/{stock_id}` (solo permite corregir `material_id` de una chapa, OWNER-only) **no tiene UI** — investigado 2026-09-14: es el único mecanismo para corregir un error de carga (no hay `DELETE` de stock), pero **no valida el `status` de la chapa** — hoy se puede ejecutar sobre una chapa `RESERVED` o `CONSUMED` sin ningún guard, lo que podría desalinear la trazabilidad de qué material se usó realmente en un corte ya confirmado (no rompe nada técnicamente, `confirm-cut`/retazos no vuelven a leer `material_id` después de reservar, pero sí puede confundir reportes futuros). Recomendación: si se agrega UI, exponerla en `StockDetailPage.tsx` solo cuando `status === "AVAILABLE"`, y agregar ese guard también en el backend (hoy no existe). No implementado todavía.
 - [ ] Persistencia/cache de `Quotation.pdf_data` — hoy la columna existe pero nunca se escribe (decisión de producto, no un bug: el diseño on-demand actual funciona bien). El campo `has_pdf` calculado en `QuotationRead` sí se eliminó (2026-09-14) — no tenía ningún consumidor (frontend ni tests), siempre daba `False`; la columna `pdf_data` se mantiene tal cual, solo se sacó el booleano muerto de la API.
 
 ### Frontend
