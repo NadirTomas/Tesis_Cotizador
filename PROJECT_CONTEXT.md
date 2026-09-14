@@ -184,7 +184,7 @@ Tesis_Cotizador/
 
 ### Frontend
 - [ ] Paginación server-side si el volumen crece más allá de lo cómodo en memoria
-- [ ] Extraer el formulario de "agregar ítem" compartido entre el wizard y el detalle de cotización (hoy duplicado) — el diálogo de edición de ítem se hizo aparte, deliberadamente, porque los campos editables son un subconjunto distinto (sin pieza/material/recomendación de stock)
+- [x] ~~Extraer el formulario de "agregar ítem" compartido entre el wizard y el detalle de cotización~~ — **hecho 2026-09-14**, `components/AddQuotationItemForm.tsx`. El diálogo de edición de ítem sigue aparte, deliberadamente, porque los campos editables son un subconjunto distinto (sin pieza/material/recomendación de stock)
 - [ ] Sin tests de componente para páginas de dominio (no hay ningún precedente en el repo de test de página/formulario CRUD; se dejó así en vez de inventar un framework nuevo solo para esta pasada de hardening)
 
 ### Decisiones de arquitectura sin resolver (no son bugs)

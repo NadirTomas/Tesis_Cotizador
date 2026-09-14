@@ -7,7 +7,6 @@ import {
   PlaylistAdd,
   RemoveCircleOutline,
   SyncAlt,
-  WarningAmber,
 } from "@mui/icons-material";
 import {
   Alert,
@@ -20,12 +19,8 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
-  FormControl,
   IconButton,
-  InputLabel,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Table,
   TableBody,
@@ -40,13 +35,13 @@ import {
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import AddQuotationItemForm from "../components/AddQuotationItemForm";
 import StockGeometryView from "../components/StockGeometryView";
 import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
 import { openAuthedResource } from "../services/authedResource";
 import {
-  createQuotationItem,
   deleteQuotationItem,
   getQuotation,
   getQuotationEvents,
@@ -101,13 +96,11 @@ const QuotationDetailPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Form agregar ítem
+  // Pieza/material seleccionados en el formulario de agregar ítem
+  // (AddQuotationItemForm) -- se reflejan acá vía onSelectionChange para
+  // poder pedir la recomendación de stock mientras se elige.
   const [pieceId, setPieceId] = useState<number | "">("");
   const [materialId, setMaterialId] = useState<number | "">("");
-  const [quantity, setQuantity] = useState(1);
-  const [margin, setMargin] = useState(20);
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
 
@@ -201,14 +194,6 @@ const QuotationDetailPage = () => {
   function pcName(pid: number) { return pieces.find((p) => p.id === pid)?.name ?? `#${pid}`; }
   function clName(cid: number) { return clients.find((c) => c.id === cid)?.name ?? `#${cid}`; }
 
-  function handlePieceChange(pid: number | "") {
-    setPieceId(pid);
-    if (pid !== "") {
-      const piece = pieces.find((p) => p.id === pid);
-      if (piece?.material_id) setMaterialId(piece.material_id);
-    }
-  }
-
   async function handleDeleteItem() {
     if (deleteItemId === null) return;
     try {
@@ -259,29 +244,9 @@ const QuotationDetailPage = () => {
     }
   }
 
-  async function handleAddItem() {
-    if (!quotation || pieceId === "" || materialId === "") return;
-    setAdding(true);
-    setAddError(null);
-    try {
-      await createQuotationItem({
-        quotation_id: quotation.id,
-        piece_id: pieceId as number,
-        material_id: materialId as number,
-        quantity,
-        margin_percent: margin,
-      });
-      setToast("Ítem agregado.");
-      setPieceId("");
-      setMaterialId("");
-      setQuantity(1);
-      setMargin(20);
-      await loadAll();
-    } catch {
-      setAddError("Error al agregar ítem. Verificá que el material tenga configuración de máquina.");
-    } finally {
-      setAdding(false);
-    }
+  async function handleItemAdded() {
+    setToast("Ítem agregado.");
+    await loadAll();
   }
 
   async function handleReserveForItem(item: QuotationItem) {
@@ -323,8 +288,6 @@ const QuotationDetailPage = () => {
       setConfirmingItemId(null);
     }
   }
-
-  const selectedPiece = pieces.find((p) => p.id === pieceId);
 
   if (loading) {
     return <Box display="flex" justifyContent="center" mt={6}><CircularProgress /></Box>;
@@ -563,49 +526,13 @@ const QuotationDetailPage = () => {
           vez enviada/aceptada su contenido queda fijo (ver backend). */}
       {quotation.status === "draft" ? (
       <Box>
-        <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "0.78rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "text.secondary", mb: 2 }}>
-          Agregar ítem
-        </Typography>
-
-        {addError && <Alert severity="error" sx={{ mb: 2 }}>{addError}</Alert>}
-
-        <Box display="flex" flexWrap="wrap" gap={2} alignItems="flex-start">
-          <FormControl sx={{ minWidth: 220 }} required>
-            <InputLabel>Pieza</InputLabel>
-            <Select label="Pieza" value={pieceId} onChange={(e) => handlePieceChange(e.target.value as number | "")}>
-              {pieces.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {p.name}
-                    {p.length_cut_mm == null && (
-                      <Tooltip title="Sin DXF"><WarningAmber fontSize="small" color="warning" /></Tooltip>
-                    )}
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl sx={{ minWidth: 200 }} required>
-            <InputLabel>Material</InputLabel>
-            <Select label="Material" value={materialId} onChange={(e) => setMaterialId(e.target.value as number | "")}>
-              {materials.map((m) => (
-                <MenuItem key={m.id} value={m.id}>{m.name} — {m.thickness_mm}mm</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <TextField label="Cantidad" type="number" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} sx={{ width: 100 }} inputProps={{ min: 1 }} />
-          <TextField label="Margen %" type="number" value={margin} onChange={(e) => setMargin(parseFloat(e.target.value) || 0)} sx={{ width: 110 }} />
-
-          <Button variant="contained" onClick={handleAddItem} disabled={adding || pieceId === "" || materialId === ""} sx={{ alignSelf: "center", mt: 0.5 }}>
-            {adding ? "Agregando..." : "Agregar"}
-          </Button>
-        </Box>
-
-        {selectedPiece && selectedPiece.length_cut_mm == null && (
-          <Alert severity="warning" sx={{ mt: 2 }}>Esta pieza no tiene DXF cargado. Los costos serán 0.</Alert>
-        )}
+        <AddQuotationItemForm
+          quotationId={quotation.id}
+          pieces={pieces}
+          materials={materials}
+          onItemAdded={handleItemAdded}
+          onSelectionChange={(pid, mid) => { setPieceId(pid); setMaterialId(mid); }}
+        />
 
         {/* Recomendación de stock */}
         {recommendLoading && (
