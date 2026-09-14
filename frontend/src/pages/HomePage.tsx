@@ -26,7 +26,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { getClients, type Client } from "../services/clients";
-import { getStats, type DashboardStats } from "../services/nesting";
+import { getStats, type DashboardStats } from "../services/quotations";
 
 const STATUS_CONFIG: Record<string, { label: string; color: "default" | "warning" | "success" | "error" | "info" }> = {
   draft:     { label: "Borrador",  color: "warning" },

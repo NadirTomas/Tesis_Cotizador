@@ -141,3 +141,25 @@ export async function getQuotationEvents(id: number): Promise<QuotationEvent[]> 
   if (!res.ok) throw new Error("Error al obtener el historial");
   return res.json();
 }
+
+export interface DashboardStats {
+  total: number;
+  this_month: number;
+  total_ars_this_month: number;
+  by_status: Record<string, number>;
+  expiring_soon: number;
+  recent: {
+    id: number;
+    number: string;
+    client_id: number;
+    status: string;
+    total_ars: number;
+    issue_date: string;
+  }[];
+}
+
+export async function getStats(): Promise<DashboardStats> {
+  const res = await apiFetch(`${BASE}/stats`, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error("Error al cargar estadísticas");
+  return res.json();
+}
