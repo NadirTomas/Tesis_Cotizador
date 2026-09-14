@@ -197,11 +197,13 @@ total_usd = total_ars / exchange_rate   (si exchange_rate está seteado y es > 0
 
 **Drafts existentes en producción al momento del cambio** (2026-09-14, análisis de solo lectura vía `railway run`, sin escribir nada):
 
-| Cotización | Ítem | Cantidad | Setup | Precio actual | Precio con fórmula nueva | Diferencia | % |
+| Cotización | Ítem | Cantidad | Setup | Precio con fórmula vieja | Precio con fórmula nueva | Diferencia | % |
 |---|---|---|---|---|---|---|---|
 | COT-0001 (id=8) | — sin ítems — | — | — | — | — | — | — |
 | COT-0002 (id=9) | item_id=17 | 1 | 0 min | $29.868,80 | $29.868,80 | $0,00 | 0,00% |
-| COT-0008 (id=11) | item_id=19 | 4 | 10 min | $19.369,34 | $5.329,34 | **-$14.040,00** | **-72,49%** |
+| COT-0008 (id=11) | item_id=19 | 4 | 10 min | $19.369,34 | $5.329,34 | -$14.040,00 | -72,49% |
+
+**Corrección puntual aplicada, 2026-09-14**: de los 3 drafts existentes, solo `COT-0008`/`item_id=19` tenía un precio calculado con la fórmula vieja (los otros dos no tenían `setup_time_min>0` con `quantity>1`, o no tenían ítems). Se recalculó explícitamente usando `calculate_quotation_item()` (la función oficial, no un `UPDATE` manual), protegido con el mismo guard atómico (`UPDATE ... WHERE status='draft'`) que ya usa `scripts/recalculate_piece_geometry.py` — abortaba sin escribir nada si la cotización hubiera dejado de estar en `draft` en el momento exacto de persistir. Verificado antes (valor viejo coincidía con la fórmula anterior reconstruida a mano), y después (nuevo valor coincide con la fórmula nueva, `quotation.total_ars` sincronizado con la suma de sus ítems, `quantity`/`margin_percent` intactos). Un segundo análisis de solo lectura después de la corrección confirmó **0 quotation items draft pendientes** de la regla antigua de setup. Ninguna cotización histórica (`sent`/`accepted`/`cancelled`), ni `COT-0001`/`COT-0002`, ni stock/reservas/piezas/`MachineConfig` fueron tocados — la operación fue un `UPDATE` acotado a un único `QuotationItem`.
 
 Solo 1 de los 3 drafts existentes se ve afectado (el que tiene `setup_time_min > 0` y `quantity > 1`); el otro no cambia porque su `MachineConfig` tiene `setup_time_min=0`. **Ninguno de estos drafts fue recalculado todavía** — el análisis fue puramente de lectura, para dimensionar el impacto antes de decidir si conviene recalcularlos automáticamente o dejarlos para que se actualicen solos cuando alguien edite el ítem (que ya dispara `calculate_quotation_item()` con la fórmula nueva).
 
