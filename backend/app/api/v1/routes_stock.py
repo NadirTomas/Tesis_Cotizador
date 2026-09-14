@@ -266,7 +266,32 @@ def update_stock_sheet(
 
     if payload.material_id is not None:
         _get_active_material(db, payload.material_id, member.company_id)
-        stock.material_id = payload.material_id
+
+        # El material de una chapa solo puede corregirse mientras sigue
+        # AVAILABLE -- una vez reservada, consumida o descartada, su
+        # identidad de material forma parte de la trazabilidad histórica
+        # (qué se reservó, qué se cortó) y no debe poder cambiar. UPDATE
+        # condicional (mismo patrón que reserve_stock/confirm_cut) para que
+        # la corrección y un reserve/discard/confirm-cut concurrentes no
+        # puedan pisarse: si la chapa deja de estar AVAILABLE justo antes de
+        # este UPDATE, no se modifica nada y se responde 409.
+        updated = (
+            db.query(StockSheet)
+            .filter(StockSheet.id == stock_id, StockSheet.status == "AVAILABLE")
+            .update({"material_id": payload.material_id})
+        )
+        if updated == 0:
+            db.rollback()
+            current_status = (
+                db.query(StockSheet.status).filter(StockSheet.id == stock_id).scalar()
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"No se puede corregir el material: la chapa ya no está disponible "
+                    f"(estado actual: '{current_status}')."
+                ),
+            )
         _log_movement(
             db, member.company_id, stock.id, "ADJUSTED", created_by_id=member.user_id,
             details={"material_id": payload.material_id},
