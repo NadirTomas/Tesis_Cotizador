@@ -350,12 +350,59 @@ def test_calculator_rejects_material_from_another_company():
     material_b = _create_material(headers_b)
 
     db = SessionLocal()
-    # piece_a pertenece a company_a, pero se arma el item con material_b
-    # (de company_b) -- calculado con company_id=company_a: la pieza pasa
-    # su propio chequeo, pero material_b no pertenece a company_a.
-    item = QuotationItem(quotation_id=quotation_a, piece_id=piece_a, material_id=material_b, quantity=1)
-    db.add(item)
-    db.flush()
-    with pytest.raises(ValueError, match="Material"):
-        calculate_quotation_item(db, item, company_a)
+    try:
+        # piece_a pertenece a company_a, pero se arma el item con material_b
+        # (de company_b) -- calculado con company_id=company_a: la pieza pasa
+        # su propio chequeo, pero material_b no pertenece a company_a.
+        item = QuotationItem(quotation_id=quotation_a, piece_id=piece_a, material_id=material_b, quantity=1)
+        db.add(item)
+        db.flush()
+        with pytest.raises(ValueError, match="Material"):
+            calculate_quotation_item(db, item, company_a)
+    finally:
+        db.close()
+
+
+# ---------- regresión: el refactor de compute_item_costs()/fetch_item_costing_context()
+# (extraídos de adentro de calculate_quotation_item() para el backfill de
+# geometría, ver scripts/recalculate_piece_geometry.py) no cambió ni un
+# bit el comportamiento observable de calculate_quotation_item(). ----------
+
+
+def test_compute_item_costs_matches_calculate_quotation_item_exactly():
+    """
+    calculate_quotation_item() ahora es fetch_item_costing_context() +
+    compute_item_costs() + asignación -- nada más. Si esto es una
+    extracción fiel (sin redondeos ni cambios de tipo introducidos),
+    llamar a compute_item_costs() a mano con los mismos insumos que usó
+    calculate_quotation_item() tiene que dar exactamente (==, no approx)
+    los mismos 5 valores que quedaron persistidos en el item real.
+    """
+    from app.services.quotation_calculator import compute_item_costs, fetch_item_costing_context
+
+    headers, _company_id, material_id = _full_setup()
+    piece_id = _create_piece(headers, material_id, area_mm2=137_500.0, length_cut_mm=1234.5, name="Regresion")
+    client_id = _create_client_record(headers)
+    quotation_id = _create_quotation(headers, client_id)
+
+    res = _add_item(headers, quotation_id, piece_id, material_id, quantity=4, margin_percent=17.5)
+    assert res.status_code == 200
+    persisted = res.json()
+
+    db = SessionLocal()
+    item = db.query(QuotationItem).filter(QuotationItem.id == persisted["id"]).first()
+    piece, material, machine_config = fetch_item_costing_context(db, item, item.piece.company_id)
+    costs = compute_item_costs(
+        piece.area_mm2, piece.length_cut_mm, material, machine_config, item.quantity, item.margin_percent
+    )
+    db.close()
+
+    # Igualdad exacta (no pytest.approx) -- misma aritmética float, mismo
+    # orden de operaciones, sin Decimal ni redondeo de por medio en
+    # ninguno de los dos caminos.
+    assert costs.cost_material_ars == persisted["cost_material_ars"]
+    assert costs.cost_machine_ars == persisted["cost_machine_ars"]
+    assert costs.cost_labor_ars == persisted["cost_labor_ars"]
+    assert costs.unit_price_ars == persisted["unit_price_ars"]
+    assert costs.total_price_ars == persisted["total_price_ars"]
     db.close()
