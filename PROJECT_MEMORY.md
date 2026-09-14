@@ -123,7 +123,7 @@ Schema versionado y reproducible desde el primer commit (aunque la migración ba
 Se abandonó depender del filesystem efímero de Railway (que se borra en cada redeploy) — decisión tomada y corregida en la práctica cuando `pdf_generator.py`/nesting crashearon leyendo paths que ya no existían (`4cb8c0c`).
 
 ### PDF on-demand, sin persistir
-`Quotation.pdf_data` existe como columna pero nunca se escribe — no hizo falta cachear, el costo de regenerar es bajo. Sigue siendo la decisión vigente.
+`Quotation.pdf_data` existe como columna pero nunca se escribe — no hizo falta cachear, el costo de regenerar es bajo. Sigue siendo la decisión vigente. El campo calculado `has_pdf` que exponía `QuotationRead` (`bool(pdf_data)`, siempre `False`) se eliminó el 2026-09-14 por ser código muerto — cero consumidores en frontend o tests, confirmado con grep exhaustivo antes de sacarlo. La columna `pdf_data` en sí se mantiene sin cambios.
 
 ### Multiempresa con `CompanyMember`, no con una tabla `tenant_id` genérica
 Modelo explícito usuario↔empresa con rol, para que un mismo usuario pueda pertenecer a varias empresas — necesario porque el sistema es multi-cliente (Cortesar es UN caso de estudio, no el único cliente previsto).

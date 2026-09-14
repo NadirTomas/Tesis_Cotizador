@@ -180,7 +180,7 @@ Tesis_Cotizador/
 
 ### Backend
 - [ ] Tests contra un motor que enforce foreign keys reales para el resto de la suite (hoy solo los 2 archivos Postgres-only lo hacen explícitamente; SQLite ya tiene `PRAGMA foreign_keys=ON` activado globalmente en `db/session.py`, así que esto ya mejoró de forma transversal)
-- [ ] Persistencia/cache de `Quotation.pdf_data` — hoy la columna existe pero nunca se escribe (decisión de producto, no un bug: el diseño on-demand actual funciona bien)
+- [ ] Persistencia/cache de `Quotation.pdf_data` — hoy la columna existe pero nunca se escribe (decisión de producto, no un bug: el diseño on-demand actual funciona bien). El campo `has_pdf` calculado en `QuotationRead` sí se eliminó (2026-09-14) — no tenía ningún consumidor (frontend ni tests), siempre daba `False`; la columna `pdf_data` se mantiene tal cual, solo se sacó el booleano muerto de la API.
 
 ### Frontend
 - [ ] Paginación server-side si el volumen crece más allá de lo cómodo en memoria
