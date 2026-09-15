@@ -53,6 +53,18 @@ describe("aiAssistant integration", () => {
     expect(AI_SYSTEM_PROMPT).toMatch(/RESERVED.*cotizaci[oó]n ACEPTADA/i);
   });
 
+  it("describes the machine cost as hours MULTIPLIED by the hourly rate, never divided by it", () => {
+    // Regresión puntual: el modelo llegó a decir "tiempo de corte + setup
+    // dividido por la tarifa horaria", que invierte la fórmula real
+    // (quotation_calculator.py: cost_machine_total = tiempo_total_horas *
+    // machine_cost_per_hour_ars). El prompt debe dejar la multiplicación
+    // explícita y no debe contener ninguna frase de "dividido" pegada a la
+    // tarifa/costo por hora.
+    expect(AI_SYSTEM_PROMPT).toMatch(/tiempo total en horas MULTIPLICADO por el costo por hora/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/se MULTIPLICA por la tarifa horaria/i);
+    expect(AI_SYSTEM_PROMPT).not.toMatch(/dividid[oa]\s+(por\s+)?(la\s+)?(tarifa horaria|costo por hora)/i);
+  });
+
   it("uses the configured 3B model, not 1B/7B/8B", () => {
     expect(AI_MODEL_ID).toBe("Llama-3.2-3B-Instruct-q4f16_1-MLC");
   });

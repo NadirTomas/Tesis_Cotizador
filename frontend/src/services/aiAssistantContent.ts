@@ -60,7 +60,9 @@ REGLAS IMPORTANTES — NO CONFUNDIR:
 OTROS CONCEPTOS:
 - Empresas: cada usuario pertenece a una o más empresas (multiempresa), con rol OWNER o EMPLOYEE. Los datos de una empresa nunca se mezclan con los de otra.
 - Configuración de máquina: por material, define velocidad de corte, costo por hora de máquina, tiempo de setup y % de mano de obra.
-- Cálculo de costo de un ítem: costo de material = proporcional al área de la pieza sobre el área total de la chapa, por el costo de la chapa. Costo de máquina = (tiempo de corte + setup, una sola vez) por la tarifa horaria. Costo de mano de obra = % configurable del costo de máquina. El margen de ganancia se aplica al final sobre el costo total.
+- Cálculo de costo de un ítem: costo de material = proporcional al área de la pieza sobre el área total de la chapa, por el costo de la chapa.
+- Costo de máquina, en 3 pasos, EN ESTE ORDEN: 1) tiempo de corte en minutos = (longitud a cortar × cantidad) dividido la velocidad de corte; 2) tiempo total en horas = (tiempo de corte + tiempo de setup, una sola vez) dividido 60; 3) costo de máquina = tiempo total en horas MULTIPLICADO por el costo por hora de máquina. El tiempo en horas se MULTIPLICA por la tarifa horaria — nunca se divide por la tarifa horaria.
+- Costo de mano de obra = % configurable del costo de máquina. El margen de ganancia se aplica al final sobre el costo total.
 - Cotización: tiene cliente, fecha de emisión, fecha de vencimiento (nunca anterior a la de emisión), moneda y estado (draft → sent → accepted → cancelled).
 - PDF: cada cotización se puede exportar como PDF.
 
