@@ -75,8 +75,8 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
         ...(notes.trim() && { notes: notes.trim() }),
       });
       onCreated(q);
-    } catch {
-      setError("Error al crear la cotización.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear la cotización.");
     } finally {
       setSaving(false);
     }
@@ -96,8 +96,25 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
               {clients.map((c) => <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>)}
             </Select>
           </FormControl>
-          <TextField label="Fecha de emisión" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} fullWidth required InputLabelProps={{ shrink: true }} />
-          <TextField label="Fecha de vencimiento (opcional)" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} fullWidth InputLabelProps={{ shrink: true }} />
+          <TextField
+            label="Fecha de emisión"
+            type="date"
+            value={issueDate}
+            onChange={(e) => setIssueDate(e.target.value)}
+            fullWidth
+            required
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ min: "2000-01-01" }}
+          />
+          <TextField
+            label="Fecha de vencimiento (opcional)"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            fullWidth
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ min: issueDate || "2000-01-01" }}
+          />
           <FormControl fullWidth>
             <InputLabel>Moneda</InputLabel>
             <Select label="Moneda" value={currency} onChange={(e) => setCurrency(e.target.value)}>

@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface Material {
   id: number;
@@ -48,7 +48,10 @@ export async function createMaterial(data: MaterialCreate): Promise<Material> {
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al crear material");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al crear material");
+  }
   return res.json();
 }
 
@@ -58,7 +61,10 @@ export async function updateMaterial(id: number, data: MaterialUpdate): Promise<
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al actualizar material");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al actualizar material");
+  }
   return res.json();
 }
 

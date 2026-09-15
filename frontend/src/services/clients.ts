@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface Client {
   id: number;
@@ -45,7 +45,10 @@ export async function createClient(data: ClientCreate): Promise<Client> {
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al crear cliente");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al crear cliente");
+  }
   return res.json();
 }
 
@@ -55,7 +58,10 @@ export async function updateClient(id: number, data: ClientUpdate): Promise<Clie
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al actualizar cliente");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al actualizar cliente");
+  }
   return res.json();
 }
 

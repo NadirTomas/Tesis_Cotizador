@@ -120,8 +120,8 @@ const MaterialsPage = () => {
       }
       setDialogOpen(false);
       await load();
-    } catch {
-      setToast("Error al guardar el material.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Error al guardar el material.");
     } finally {
       setSaving(false);
     }

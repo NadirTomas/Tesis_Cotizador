@@ -124,8 +124,8 @@ const ClientsPage = () => {
       }
       setDialogOpen(false);
       await load();
-    } catch {
-      setToast("Error al guardar el cliente.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Error al guardar el cliente.");
     } finally {
       setSaving(false);
     }
