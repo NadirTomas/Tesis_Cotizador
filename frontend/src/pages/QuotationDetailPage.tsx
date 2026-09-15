@@ -102,6 +102,7 @@ const QuotationDetailPage = () => {
   const [pieceId, setPieceId] = useState<number | "">("");
   const [materialId, setMaterialId] = useState<number | "">("");
   const [deleteItemId, setDeleteItemId] = useState<number | null>(null);
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
 
   // Editar ítem existente — solo cantidad/margen, es lo único que soporta
@@ -327,7 +328,7 @@ const QuotationDetailPage = () => {
               variant="outlined"
               color={action.next === "cancelled" ? "error" : "primary"}
               disabled={changingStatus}
-              onClick={() => handleStatusChange(action.next)}
+              onClick={() => (action.next === "cancelled" ? setConfirmCancelOpen(true) : handleStatusChange(action.next))}
             >
               {action.label}
             </Button>
@@ -660,6 +661,31 @@ const QuotationDetailPage = () => {
         <DialogActions>
           <Button onClick={() => setDeleteItemId(null)}>Cancelar</Button>
           <Button color="error" variant="contained" onClick={handleDeleteItem}>Eliminar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmar cancelación de cotización */}
+      <Dialog open={confirmCancelOpen} onClose={() => setConfirmCancelOpen(false)}>
+        <DialogTitle>¿Cancelar esta cotización?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Esta acción cambia el estado de la cotización a "Cancelado" y puede liberar las reservas de
+            material asociadas a sus ítems. No se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmCancelOpen(false)} disabled={changingStatus}>Volver</Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={changingStatus}
+            onClick={async () => {
+              setConfirmCancelOpen(false);
+              await handleStatusChange("cancelled");
+            }}
+          >
+            Sí, cancelar
+          </Button>
         </DialogActions>
       </Dialog>
 
