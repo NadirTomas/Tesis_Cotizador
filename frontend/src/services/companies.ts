@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface Company {
   id: number;
@@ -131,7 +131,7 @@ export async function createMember(companyId: number, data: CompanyMemberCreate)
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al crear el empleado");
+    throw new Error(parseErrorDetail(err) ?? "Error al crear el empleado");
   }
   return res.json();
 }
@@ -148,7 +148,7 @@ export async function updateMember(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? "Error al actualizar el empleado");
+    throw new Error(parseErrorDetail(err) ?? "Error al actualizar el empleado");
   }
   return res.json();
 }
