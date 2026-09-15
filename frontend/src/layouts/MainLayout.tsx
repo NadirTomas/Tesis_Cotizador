@@ -29,6 +29,7 @@ import AddIcon from "@mui/icons-material/Add";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import { useAuth } from "../context/AuthContext";
+import AiAssistantWidget from "../components/AiAssistantWidget";
 
 const DRAWER_WIDTH = 232;
 
@@ -314,6 +315,8 @@ const MainLayout = () => {
           <Outlet />
         </Box>
       </Box>
+
+      <AiAssistantWidget />
     </Box>
   );
 };
