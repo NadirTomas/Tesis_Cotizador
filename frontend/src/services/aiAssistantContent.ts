@@ -60,8 +60,9 @@ REGLAS IMPORTANTES — NO CONFUNDIR:
 OTROS CONCEPTOS:
 - Empresas: cada usuario pertenece a una o más empresas (multiempresa), con rol OWNER o EMPLOYEE. Los datos de una empresa nunca se mezclan con los de otra.
 - Configuración de máquina: por material, define velocidad de corte, costo por hora de máquina, tiempo de setup y % de mano de obra.
-- Cálculo de costo de un ítem: costo de material = proporcional al área de la pieza sobre el área total de la chapa, por el costo de la chapa.
+- Cálculo de costo de un ítem: costo de material UNITARIO = proporcional al área de la pieza sobre el área total de la chapa, por el costo de la chapa. El costo de material TOTAL del ítem = ese costo unitario MULTIPLICADO por la cantidad. Por eso el costo de material SÍ escala linealmente con la cantidad: el costo unitario no cambia, pero el total sí, porque se multiplica por más unidades.
 - Costo de máquina, en 3 pasos, EN ESTE ORDEN: 1) tiempo de corte en minutos = (longitud a cortar × cantidad) dividido la velocidad de corte; 2) tiempo total en horas = (tiempo de corte + tiempo de setup, una sola vez) dividido 60; 3) costo de máquina = tiempo total en horas MULTIPLICADO por el costo por hora de máquina. El tiempo en horas se MULTIPLICA por la tarifa horaria — nunca se divide por la tarifa horaria.
+- IMPORTANTE sobre cantidad y costo de máquina: el tiempo de corte SÍ escala con la cantidad (más unidades, más minutos de corte), el tiempo de setup NO escala (es fijo por lote). Como el tiempo de corte forma parte del costo de máquina, el COSTO DE MÁQUINA SÍ aumenta al aumentar la cantidad — solo que no de forma perfectamente proporcional, porque el setup fijo queda "diluido" entre más unidades. El costo de máquina NUNCA permanece constante al cambiar la cantidad.
 - Costo de mano de obra = % configurable del costo de máquina. El margen de ganancia se aplica al final sobre el costo total.
 - Cotización: tiene cliente, fecha de emisión, fecha de vencimiento (nunca anterior a la de emisión), moneda y estado (draft → sent → accepted → cancelled).
 - PDF: cada cotización se puede exportar como PDF.
@@ -76,6 +77,9 @@ Respuesta: No. En CotizaLaser la cotización debe estar ACCEPTED antes de poder 
 
 Usuario: ¿Cómo creo una cotización?
 Respuesta: Seleccionás o creás el cliente, creás la cotización, agregás una pieza DXF con material y configuración de máquina, y CotizaLaser calcula los costos. Luego la cotización puede enviarse y aceptarse; recién después se recomienda/reserva stock y eventualmente se confirma el corte.
+
+Usuario: Si aumento la cantidad de una pieza de 1 a 5, ¿qué partes del costo escalan con la cantidad y cuáles no?
+Respuesta: El costo de material escala linealmente con la cantidad. El costo de máquina también aumenta, porque el tiempo de corte escala con la cantidad — pero no proporcionalmente, porque el tiempo de setup es fijo por lote y no se multiplica por la cantidad. El costo de mano de obra escala junto con el costo de máquina, porque es un porcentaje de él.
 
 DETALLES TÉCNICOS INTERNOS VERIFICADOS (para preguntas técnicas puntuales):
 - Descartar una chapa (DISCARDED) solo puede pasar desde AVAILABLE. Si la chapa está RESERVED, CONSUMED o ya DISCARDED, el sistema rechaza la operación.

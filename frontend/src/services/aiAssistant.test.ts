@@ -88,6 +88,38 @@ describe("aiAssistant integration", () => {
     expect(AI_SYSTEM_PROMPT).toMatch(/no invalida necesariamente su acceso a otras empresas/i);
   });
 
+  it("makes explicit that machine cost scales with quantity via cut time, unlike setup", () => {
+    // Regresión real detectada en prueba funcional: preguntado "¿qué
+    // escala con la cantidad?", el modelo de 3B respondió que el costo de
+    // máquina "permanece constante", contradiciendo la propia formula
+    // (cut_time_total_min = length_cut_mm * quantity / cut_speed_mm_min).
+    // Se refuerza el hecho junto a la fórmula y se agrega un 4to few-shot
+    // con exactamente este tipo de pregunta.
+    expect(AI_SYSTEM_PROMPT).toMatch(/el tiempo de corte SÍ escala con la cantidad/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/EL COSTO DE MÁQUINA SÍ AUMENTA AL AUMENTAR LA CANTIDAD/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/El costo de máquina NUNCA permanece constante al cambiar la cantidad/i);
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "Si aumento la cantidad de una pieza de 1 a 5, ¿qué partes del costo escalan con la cantidad y cuáles no?"
+    );
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "El costo de máquina también aumenta, porque el tiempo de corte escala con la cantidad"
+    );
+  });
+
+  it("makes explicit that total material cost DOES scale linearly with quantity", () => {
+    // Segunda regresión encontrada en la misma prueba funcional, efecto
+    // colateral del fix anterior: al reforzar que el setup NO escala, el
+    // modelo empezó a responder que el costo de material "no escala con la
+    // cantidad" -- describía solo el costo UNITARIO (que en efecto no
+    // cambia) sin mencionar que el total se multiplica por quantity
+    // (cost_material_total = costo_material_unitario * quantity en
+    // quotation_calculator.py). Se distingue unitario vs. total
+    // explícitamente en el prompt.
+    expect(AI_SYSTEM_PROMPT).toMatch(/costo de material UNITARIO/);
+    expect(AI_SYSTEM_PROMPT).toMatch(/costo de material TOTAL del ítem = ese costo unitario MULTIPLICADO por la cantidad/);
+    expect(AI_SYSTEM_PROMPT).toMatch(/el costo de material SÍ escala linealmente con la cantidad/i);
+  });
+
   it("uses the configured 3B model, not 1B/7B/8B", () => {
     expect(AI_MODEL_ID).toBe("Llama-3.2-3B-Instruct-q4f16_1-MLC");
   });
