@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, selectCompany } = useAuth();
+  const { login, logout, selectCompany } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,13 +28,20 @@ export default function LoginPage() {
       const res = await loginRequest(email, password);
       login(res.access_token);
       const companies = await getMyCompanies();
-      if (companies.length === 1) {
-        selectCompany(companies[0].id, companies[0].role, companies[0].company_name);
+      const active = companies.filter((c) => c.member_is_active && c.is_active);
+      if (active.length === 1) {
+        selectCompany(active[0].id, active[0].role, active[0].company_name);
         navigate("/");
+      } else if (active.length > 1) {
+        navigate("/select-company");
       } else if (companies.length === 0) {
         navigate("/companies/new");
       } else {
-        navigate("/select-company");
+        // El usuario existe y tiene contraseña válida, pero no tiene ningún
+        // acceso activo: todas sus empresas están desactivadas para él, o
+        // las empresas en sí fueron desactivadas. No lo dejamos "entrar".
+        logout();
+        setError("Tu acceso a la empresa fue desactivado. Contactá al administrador.");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión");

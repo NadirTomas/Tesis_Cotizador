@@ -36,10 +36,12 @@ describe("LoginPage", () => {
     getMyCompanies.mockReset();
   });
 
-  it("logs in and goes straight to / when the user has exactly one company", async () => {
+  it("logs in and goes straight to / when the user has exactly one active company", async () => {
     const user = userEvent.setup();
     loginRequest.mockResolvedValue({ access_token: "tok-123", token_type: "bearer" });
-    getMyCompanies.mockResolvedValue([{ id: 1, company_name: "Acme", role: "owner" }]);
+    getMyCompanies.mockResolvedValue([
+      { id: 1, company_name: "Acme", role: "owner", is_active: true, member_is_active: true },
+    ]);
 
     renderLoginPage();
     await user.type(screen.getByLabelText(/email/i), "demo@test.com");
@@ -49,6 +51,24 @@ describe("LoginPage", () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/"));
     expect(loginRequest).toHaveBeenCalledWith("demo@test.com", "Password1!");
     expect(localStorage.getItem("auth_token")).toBe("tok-123");
+  });
+
+  it("rejects a deactivated employee even though the login credentials are valid", async () => {
+    const user = userEvent.setup();
+    loginRequest.mockResolvedValue({ access_token: "tok-123", token_type: "bearer" });
+    getMyCompanies.mockResolvedValue([
+      { id: 1, company_name: "Acme", role: "employee", is_active: true, member_is_active: false },
+    ]);
+
+    renderLoginPage();
+    await user.type(screen.getByLabelText(/email/i), "empleado@test.com");
+    await user.type(screen.getByLabelText(/contraseña/i), "Password1!");
+    await user.click(screen.getByRole("button", { name: /ingresar/i }));
+
+    expect(await screen.findByText(/acceso.*desactivado/i)).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalledWith("/");
+    expect(mockNavigate).not.toHaveBeenCalledWith("/companies/new");
+    expect(localStorage.getItem("auth_token")).toBeNull();
   });
 
   it("sends the user to create a company when they have none", async () => {

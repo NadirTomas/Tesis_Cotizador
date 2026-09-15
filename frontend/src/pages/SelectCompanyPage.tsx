@@ -76,21 +76,28 @@ export default function SelectCompanyPage() {
 
         {!loading && !error && (
           <List sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {companies.map((c) => (
-              <ListItemButton
-                key={c.id}
-                onClick={() => handleSelect(c)}
-                sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.5, py: 1.5 }}
-              >
-                <ListItemText primary={c.company_name} />
-                <Chip
-                  label={c.role === "owner" ? "OWNER" : "EMPLOYEE"}
-                  size="small"
-                  color={c.role === "owner" ? "primary" : "default"}
-                  variant="outlined"
-                />
-              </ListItemButton>
-            ))}
+            {companies.map((c) => {
+              const disabled = !c.member_is_active || !c.is_active;
+              return (
+                <ListItemButton
+                  key={c.id}
+                  disabled={disabled}
+                  onClick={() => handleSelect(c)}
+                  sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1.5, py: 1.5 }}
+                >
+                  <ListItemText
+                    primary={c.company_name}
+                    secondary={disabled ? "Acceso desactivado" : undefined}
+                  />
+                  <Chip
+                    label={c.role === "owner" ? "OWNER" : "EMPLOYEE"}
+                    size="small"
+                    color={c.role === "owner" ? "primary" : "default"}
+                    variant="outlined"
+                  />
+                </ListItemButton>
+              );
+            })}
           </List>
         )}
 
