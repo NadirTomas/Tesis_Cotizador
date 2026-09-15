@@ -46,7 +46,12 @@ export async function* streamAssistantReply(
   const stream = await engine.chat.completions.create({
     messages,
     stream: true,
-    temperature: 0.4,
+    // Se prioriza precisión/grounding sobre creatividad: para este
+    // asistente de ayuda, una respuesta repetitiva es preferible a una
+    // "creativa" que invente pantallas o mezcle etapas del flujo.
+    temperature: 0.2,
+    top_p: 0.9,
+    max_tokens: 300,
   });
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content;
