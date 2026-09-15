@@ -18,12 +18,14 @@ def get_current_company(
     empresa Y que la empresa en sí siga activa. El company_id que manda el
     frontend nunca se confía por sí solo.
 
+    User.is_active (baja global) ya no hace falta chequearlo acá de forma
+    redundante: get_current_user (Depends de esta función) revalida contra
+    la DB y corta con 401 antes de llegar a este punto.
+
     Hoy no existe ningún endpoint que ponga Company.is_active en False (no
-    hay "dar de baja una empresa" implementado) — este chequeo es
-    defensivo/preventivo, mismo criterio que ya se aplica a User.is_active
-    y CompanyMember.is_active en este mismo módulo, para que el día que se
-    agregue esa funcionalidad ya bloquee acceso sin tener que acordarse de
-    tocar este guard.
+    hay "dar de baja una empresa" implementado) — el chequeo de abajo es
+    defensivo/preventivo, para que el día que se agregue esa funcionalidad
+    ya bloquee acceso sin tener que acordarse de tocar este guard.
     """
     member = (
         db.query(CompanyMember)

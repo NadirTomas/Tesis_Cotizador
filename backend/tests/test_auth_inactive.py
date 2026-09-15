@@ -71,16 +71,16 @@ def test_globally_inactive_user_cannot_refresh_existing_token():
     assert res.status_code == 401
 
 
-def test_globally_inactive_user_old_token_still_works_until_it_expires():
-    """LIMITACIÓN CONOCIDA Y ACEPTADA (no corregida en este pase): no existe
-    revocación de tokens. Un access_token emitido ANTES de la baja global
-    sigue siendo un JWT válido hasta que expira por su propio `exp` -- ni
-    get_current_user ni get_current_company re-consultan User.is_active en
-    cada request, solo /auth/login y /auth/refresh lo hacen. Cerrar esto del
-    todo requeriría una blacklist/versión de token, que es infraestructura
-    nueva fuera del alcance de este fix puntual. Este test documenta el
-    comportamiento actual para que no se asuma que ya está cerrado."""
+def test_globally_inactive_user_old_access_token_is_rejected_by_protected_endpoints():
+    """Corregido: get_current_user revalida contra la DB en cada request. Un
+    access_token emitido ANTES de la baja global (User.is_active=False) deja
+    de servir para endpoints protegidos, aunque el JWT en sí siga siendo
+    criptográficamente válido y no vencido. Esto NO es revocación de tokens
+    (no hay blacklist ni versión de token) -- es revalidación del estado del
+    usuario en cada request autenticado."""
     owner_headers, company_id, _ = _setup_owner_and_employee()
+
+    # 1. Token emitido mientras el usuario está activo.
     employee_res = client.post("/auth/login", json={"email": "employee@test.com", "password": "Password1!"})
     employee_token = employee_res.json()["access_token"]
     employee_headers = {"Authorization": f"Bearer {employee_token}", "X-Company-Id": str(company_id)}
@@ -88,20 +88,27 @@ def test_globally_inactive_user_old_token_still_works_until_it_expires():
     res = client.get("/clients", headers=employee_headers)
     assert res.status_code == 200
 
+    # 2. Se desactiva el usuario en DB (sin tocar el token para nada).
     db = SessionLocal()
     db.query(User).filter(User.email == "employee@test.com").update({"is_active": False})
     db.commit()
     db.close()
 
-    # El token viejo sigue funcionando para requests normales (comportamiento
-    # actual, no un bug nuevo introducido acá) porque CompanyMember.is_active
-    # sigue en True.
+    # 3. El mismo token viejo, contra un endpoint protegido -> rechazado.
     res = client.get("/clients", headers=employee_headers)
-    assert res.status_code == 200
+    assert res.status_code == 401
 
-    # Pero ya no puede renovarlo ni volver a loguearse.
+    # También se corta en endpoints que solo dependen de get_current_user
+    # (sin pasar por get_current_company), como /companies/me.
+    res = client.get("/companies/me", headers={"Authorization": f"Bearer {employee_token}"})
+    assert res.status_code == 401
+
+    # 4. Refresh con usuario inactivo -> rechazado (ya cubierto también por
+    # test_globally_inactive_user_cannot_refresh_existing_token).
     res = client.post("/auth/refresh", headers={"Authorization": f"Bearer {employee_token}"})
     assert res.status_code == 401
+
+    # Y tampoco puede volver a loguearse desde cero.
     res = client.post("/auth/login", json={"email": "employee@test.com", "password": "Password1!"})
     assert res.status_code == 403
 
@@ -158,3 +165,41 @@ def test_deactivated_membership_blocks_company_scoped_access():
 
     res = client.post("/clients", json={"name": "Cliente Nuevo"}, headers=employee_headers)
     assert res.status_code == 403
+
+
+def test_deactivated_membership_in_one_company_does_not_affect_another():
+    """CompanyMember.is_active=False es por-empresa: si el usuario pertenece
+    a otra empresa donde sigue activo, conserva su sesión global y puede
+    seguir operando ahí -- solo pierde acceso a la empresa donde fue dado de
+    baja."""
+    owner_a_headers, company_a, member_a_id = _setup_owner_and_employee()
+
+    owner_b_token = _register("owner_b@test.com")
+    res = client.post(
+        "/companies",
+        json={"company_name": "Empresa B"},
+        headers={"Authorization": f"Bearer {owner_b_token}"},
+    )
+    company_b = res.json()["id"]
+    owner_b_headers = {"Authorization": f"Bearer {owner_b_token}", "X-Company-Id": str(company_b)}
+    client.post(
+        f"/companies/{company_b}/members",
+        json={"email": "employee@test.com", "password": "Password1!", "role": "employee"},
+        headers=owner_b_headers,
+    )
+
+    client.patch(
+        f"/companies/{company_a}/members/{member_a_id}",
+        json={"is_active": False},
+        headers=owner_a_headers,
+    )
+
+    employee_res = client.post("/auth/login", json={"email": "employee@test.com", "password": "Password1!"})
+    assert employee_res.status_code == 200
+    employee_token = employee_res.json()["access_token"]
+
+    res = client.get("/clients", headers={"Authorization": f"Bearer {employee_token}", "X-Company-Id": str(company_a)})
+    assert res.status_code == 403
+
+    res = client.get("/clients", headers={"Authorization": f"Bearer {employee_token}", "X-Company-Id": str(company_b)})
+    assert res.status_code == 200
