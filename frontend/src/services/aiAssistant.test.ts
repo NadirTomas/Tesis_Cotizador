@@ -65,6 +65,29 @@ describe("aiAssistant integration", () => {
     expect(AI_SYSTEM_PROMPT).not.toMatch(/dividid[oa]\s+(por\s+)?(la\s+)?(tarifa horaria|costo por hora)/i);
   });
 
+  it("includes the internal technical details block with the 10 verified facts", () => {
+    expect(AI_SYSTEM_PROMPT).toContain("DETALLES TÉCNICOS INTERNOS VERIFICADOS");
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "Descartar una chapa (DISCARDED) solo puede pasar desde AVAILABLE."
+    );
+    expect(AI_SYSTEM_PROMPT).toMatch(/actualizaci[oó]n condicional.*evitar carreras/i);
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "Cancelar una cotización con reservas activas libera esas reservas automáticamente."
+    );
+    expect(AI_SYSTEM_PROMPT).toMatch(/Liberar una reserva NO significa descartar la chapa/);
+    expect(AI_SYSTEM_PROMPT).toMatch(/DISCARDED significa que el material físico se dio de baja/);
+    expect(AI_SYSTEM_PROMPT).toMatch(/tiempo de corte escala con la cantidad/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/setup.*NO escala.*una sola vez por lote/i);
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "machine_cost = ((( length_cut_mm × quantity ) / cut_speed_mm_min ) + setup_time_min ) / 60 × machine_cost_per_hour_ars"
+    );
+    expect(AI_SYSTEM_PROMPT).toMatch(/mano de obra es un porcentaje configurable del costo de m[aá]quina/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/JWT emitido antes de desactivar a un usuario/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/vuelve a consultar si el usuario sigue activo en la base de datos/i);
+    expect(AI_SYSTEM_PROMPT).toMatch(/CompanyMember inactivo/);
+    expect(AI_SYSTEM_PROMPT).toMatch(/no invalida necesariamente su acceso a otras empresas/i);
+  });
+
   it("uses the configured 3B model, not 1B/7B/8B", () => {
     expect(AI_MODEL_ID).toBe("Llama-3.2-3B-Instruct-q4f16_1-MLC");
   });
