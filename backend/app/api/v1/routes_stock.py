@@ -37,8 +37,6 @@ from app.services.stock_reservations import release_reservation
 
 router = APIRouter(prefix="/stock", tags=["stock"])
 
-_DISCARDABLE_STATUSES = ("AVAILABLE", "RESERVED")
-
 
 def _get_active_material(db: Session, material_id: int, company_id: int) -> Material:
     material = (
@@ -315,11 +313,35 @@ def discard_stock_sheet(
     )
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
-    if stock.status not in _DISCARDABLE_STATUSES:
-        raise HTTPException(
-            status_code=400, detail=f"No se puede descartar stock en estado '{stock.status}'"
+
+    # UPDATE condicional (mismo patrón que reserve_stock/confirm_cut/
+    # update_stock_sheet): descartar solo puede pasar desde AVAILABLE. Esto
+    # cierra a la vez tres cosas -- una chapa RESERVED nunca puede terminar
+    # DISCARDED con su reserva ACTIVE huérfana (el usuario debe liberarla
+    # explícitamente primero, sin efectos secundarios ocultos sobre la
+    # reserva/cotización); una carrera con reserve_stock nunca deja la
+    # chapa en un estado intermedio (quien comitea primero se queda con la
+    # fila, el otro ve 0 filas afectadas); y una carrera con confirm_cut
+    # nunca puede sobrescribir CONSUMED->DISCARDED después de generar
+    # retazos, porque una vez que deja de ser AVAILABLE, este UPDATE ya no
+    # matchea esa fila bajo ninguna circunstancia.
+    updated = (
+        db.query(StockSheet)
+        .filter(StockSheet.id == stock_id, StockSheet.status == "AVAILABLE")
+        .update({"status": "DISCARDED"})
+    )
+    if updated == 0:
+        db.rollback()
+        current_status = (
+            db.query(StockSheet.status).filter(StockSheet.id == stock_id).scalar()
         )
-    stock.status = "DISCARDED"
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"No se puede descartar: la chapa está en estado '{current_status}', "
+                f"no 'AVAILABLE'."
+            ),
+        )
     _log_movement(db, member.company_id, stock.id, "DISCARDED", created_by_id=member.user_id)
     db.commit()
     db.refresh(stock)
