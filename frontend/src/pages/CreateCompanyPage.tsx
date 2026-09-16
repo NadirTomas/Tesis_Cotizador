@@ -44,8 +44,9 @@ export default function CreateCompanyPage() {
         sx={{
           width: "100%",
           maxWidth: 440,
-          bgcolor: "#0F1117",
-          border: "1px solid #1E2028",
+          bgcolor: "background.paper",
+          border: "1px solid",
+          borderColor: "divider",
           borderRadius: "12px",
           p: 4,
         }}
@@ -57,13 +58,13 @@ export default function CreateCompanyPage() {
             fontSize: "1.5rem",
             letterSpacing: "0.03em",
             textTransform: "uppercase",
-            color: "#E8E9EB",
+            color: "text.primary",
             mb: 0.5,
           }}
         >
           Creá tu empresa
         </Typography>
-        <Typography sx={{ color: "#8B92A7", fontSize: "0.9rem", mb: 3 }}>
+        <Typography sx={{ color: "text.secondary", fontSize: "0.9rem", mb: 3 }}>
           Todavía no pertenecés a ninguna empresa. Vas a quedar como OWNER.
         </Typography>
 
@@ -86,7 +87,7 @@ export default function CreateCompanyPage() {
         <Button
           fullWidth
           variant="text"
-          sx={{ mt: 1.5, color: "#6B7280" }}
+          sx={{ mt: 1.5, color: "text.secondary" }}
           onClick={() => { logout(); navigate("/login"); }}
         >
           Cerrar sesión

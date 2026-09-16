@@ -1,27 +1,10 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { PaletteMode } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { getTheme } from "../theme/theme";
-
-const STORAGE_KEY = "theme_mode";
-
-interface ThemeModeContextType {
-  mode: PaletteMode;
-  toggleMode: () => void;
-}
-
-const ThemeModeContext = createContext<ThemeModeContextType>(null!);
-
-function readStoredMode(): PaletteMode {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === "dark" ? "dark" : "light";
-  } catch {
-    return "light";
-  }
-}
+import { readStoredMode, STORAGE_KEY, ThemeModeContext } from "./themeModeContextValue";
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<PaletteMode>(readStoredMode);
@@ -50,8 +33,4 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
       </ThemeProvider>
     </ThemeModeContext.Provider>
   );
-}
-
-export function useThemeMode() {
-  return useContext(ThemeModeContext);
 }

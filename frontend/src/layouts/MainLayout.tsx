@@ -32,7 +32,7 @@ import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import { useAuth } from "../context/AuthContext";
-import { useThemeMode } from "../context/ThemeModeContext";
+import { useThemeMode } from "../context/themeModeContextValue";
 import AiAssistantWidget from "../components/AiAssistantWidget";
 
 const DRAWER_WIDTH = 232;

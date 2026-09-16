@@ -7,6 +7,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { loginRequest } from "../services/auth";
@@ -19,6 +20,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login, logout, selectCompany } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,17 +101,23 @@ export default function LoginPage() {
           zIndex: 1,
           width: "100%",
           maxWidth: 420,
-          bgcolor: "#0F1117",
-          border: "1px solid #1E2028",
+          border: "1px solid",
+          borderColor: "divider",
           borderRadius: "12px",
           p: { xs: 3.5, sm: 5 },
-          background: "linear-gradient(135deg, rgba(17, 19, 24, 0.95) 0%, rgba(15, 17, 23, 0.98) 100%)",
+          background: isDark
+            ? "linear-gradient(135deg, rgba(17, 19, 24, 0.95) 0%, rgba(15, 17, 23, 0.98) 100%)"
+            : "linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(250, 250, 252, 0.99) 100%)",
           backdropFilter: "blur(4px)",
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 107, 0, 0.1)",
+          boxShadow: isDark
+            ? "0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 107, 0, 0.1)"
+            : "0 8px 32px rgba(20, 22, 28, 0.1), inset 0 1px 0 rgba(255, 107, 0, 0.08)",
           transition: "all 0.3s ease",
 
           "&:hover": {
-            boxShadow: "0 16px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 107, 0, 0.15)",
+            boxShadow: isDark
+              ? "0 16px 48px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 107, 0, 0.15)"
+              : "0 16px 48px rgba(20, 22, 28, 0.16), inset 0 1px 0 rgba(255, 107, 0, 0.12)",
           },
         }}
       >
@@ -134,7 +143,8 @@ export default function LoginPage() {
             gap: 2,
             mb: 5,
             pb: 4,
-            borderBottom: "1px solid rgba(30, 32, 40, 0.5)",
+            borderBottom: "1px solid",
+            borderColor: "divider",
           }}
         >
           <Box
@@ -192,7 +202,7 @@ export default function LoginPage() {
                 fontWeight: 700,
                 fontSize: "1.3rem",
                 letterSpacing: "0.08em",
-                color: "#E8E9EB",
+                color: "text.primary",
                 lineHeight: 1.2,
                 textTransform: "uppercase",
                 mb: 0.5,
@@ -206,7 +216,7 @@ export default function LoginPage() {
             <Typography
               sx={{
                 fontSize: "0.65rem",
-                color: "#6B7280",
+                color: "text.secondary",
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
                 fontFamily: '"DM Sans", sans-serif',
@@ -226,7 +236,7 @@ export default function LoginPage() {
               fontWeight: 700,
               fontSize: "1.75rem",
               letterSpacing: "0.02em",
-              color: "#E8E9EB",
+              color: "text.primary",
               mb: 1,
               textTransform: "uppercase",
             }}
@@ -236,7 +246,7 @@ export default function LoginPage() {
           <Typography
             variant="body2"
             sx={{
-              color: "#8B92A7",
+              color: "text.secondary",
               fontSize: "0.95rem",
               lineHeight: 1.5,
               fontWeight: 400,
@@ -255,11 +265,12 @@ export default function LoginPage() {
               borderRadius: "8px",
               fontSize: "0.875rem",
               "& .MuiAlert-icon": {
-                color: "#EF4444",
+                color: "error.main",
               },
               backgroundColor: "rgba(239, 68, 68, 0.1)",
-              borderLeft: "3px solid #EF4444",
-              color: "#FECACA",
+              borderLeft: "3px solid",
+              borderLeftColor: "error.main",
+              color: isDark ? "#FECACA" : "error.dark",
               animation: "slideIn 0.3s ease-out",
 
               "@keyframes slideIn": {
@@ -295,7 +306,7 @@ export default function LoginPage() {
                 sx: {
                   transition: "all 0.2s ease",
                   "&::placeholder": {
-                    color: "#6B7280",
+                    color: "text.secondary",
                     opacity: 0.6,
                   },
                 },
@@ -325,7 +336,7 @@ export default function LoginPage() {
                 sx: {
                   transition: "all 0.2s ease",
                   "&::placeholder": {
-                    color: "#6B7280",
+                    color: "text.secondary",
                     opacity: 0.6,
                   },
                 },
@@ -393,7 +404,7 @@ export default function LoginPage() {
         <Typography
           sx={{
             fontSize: "0.75rem",
-            color: "#6B7280",
+            color: "text.secondary",
             textAlign: "center",
             mt: 3,
             letterSpacing: "0.01em",

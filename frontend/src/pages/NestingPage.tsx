@@ -255,8 +255,8 @@ const NestingPage = () => {
       });
       setResult(res);
       setActiveSheet(0);
-    } catch (e: any) {
-      setError(e.message ?? "Error al calcular.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al calcular.");
     } finally {
       setCalculating(false);
     }
@@ -440,7 +440,7 @@ const NestingPage = () => {
                   {
                     label: "Piezas ubicadas",
                     value: `${result.total_pieces_placed} / ${result.total_pieces_requested}`,
-                    color: result.total_pieces_placed < result.total_pieces_requested ? "#F59E0B" : ACCENT,
+                    color: result.total_pieces_placed < result.total_pieces_requested ? "warning.main" : ACCENT,
                   },
                   { label: "Chapas necesarias", value: result.total_sheets.toString() },
                   { label: "Utilización promedio", value: `${result.overall_utilization_pct}%` },
@@ -475,7 +475,7 @@ const NestingPage = () => {
                   );
                 })}
                 <Box display="flex" alignItems="center" gap={0.75}>
-                  <Box sx={{ width: 12, height: 12, borderRadius: 0.5, border: "1.5px dashed #888" }} />
+                  <Box sx={{ width: 12, height: 12, borderRadius: 0.5, border: "1.5px dashed", borderColor: "text.secondary" }} />
                   <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>Girada 90°</Typography>
                 </Box>
               </Box>
