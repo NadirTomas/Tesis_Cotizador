@@ -3,8 +3,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.db.init_db import init_db
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.main import app
+from app.models.material import Material
 
 client = TestClient(app)
 
@@ -118,3 +119,36 @@ def test_material_update_rejects_negative_cost():
 
     res = client.put(f"/materials/{material_id}", json={"sheet_cost_ars": -50}, headers=headers)
     assert res.status_code == 422
+
+
+def test_reading_a_pre_existing_material_out_of_the_new_bounds_never_500s():
+    """Regresión de incidente real en producción (2026-09-16): MaterialRead
+    heredaba los mismos field_validators de MaterialCreate (via
+    MaterialBase), así que una fila YA guardada con valores fuera de los
+    límites nuevos (cargada antes de que existiera esta validación)
+    rompía GET /materials con un 500 (ResponseValidationError) en vez de
+    simplemente mostrarse. Los límites deben regir solo la escritura,
+    nunca la lectura."""
+    headers = _headers()
+    res = client.post("/materials", json=_VALID_MATERIAL, headers=headers)
+    material_id = res.json()["id"]
+
+    db = SessionLocal()
+    db.query(Material).filter(Material.id == material_id).update(
+        {
+            "thickness_mm": 4444444444.0,
+            "sheet_width_mm": 444444444444.0,
+            "sheet_height_mm": 44444444444444.0,
+            "sheet_cost_ars": 4444444444444444.0,
+        }
+    )
+    db.commit()
+    db.close()
+
+    res = client.get("/materials", headers=headers)
+    assert res.status_code == 200
+    assert res.json()[0]["thickness_mm"] == 4444444444.0
+
+    res = client.get(f"/materials/{material_id}", headers=headers)
+    assert res.status_code == 200
+    assert res.json()["sheet_cost_ars"] == 4444444444444444.0

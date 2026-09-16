@@ -20,8 +20,19 @@ def _validate_positive(value: Optional[float], *, field_name: str, max_value: fl
     return value
 
 
-class MaterialBase(BaseModel):
+class MaterialCreate(BaseModel):
+    """Estos límites (y los de MaterialUpdate) rigen SOLO al escribir.
+    MaterialRead es un modelo separado y deliberadamente sin validadores:
+    un material ya guardado en producción con valores fuera de este rango
+    (cargado antes de que existiera esta regla) debe poder seguir
+    leyéndose tal cual, nunca romper un GET. No compartir estos
+    validators con MaterialRead vía herencia — eso fue justo el bug que
+    tiró 500 en /materials para una empresa real (ver incidente
+    2026-09-16)."""
+
     name: str
+    material_type: str
+    alloy: Optional[str] = None
     thickness_mm: float
     sheet_width_mm: float
     sheet_height_mm: float
@@ -31,6 +42,16 @@ class MaterialBase(BaseModel):
     @classmethod
     def _validate_name(cls, v: str) -> str:
         return clean_required_text(v, field_name="El nombre", min_length=1, max_length=200)
+
+    @field_validator("material_type")
+    @classmethod
+    def _validate_material_type(cls, v: str) -> str:
+        return clean_required_text(v, field_name="El tipo de material", min_length=1, max_length=100)
+
+    @field_validator("alloy")
+    @classmethod
+    def _validate_alloy(cls, v: Optional[str]) -> Optional[str]:
+        return clean_optional_text(v, max_length=100)
 
     @field_validator("thickness_mm")
     @classmethod
@@ -60,21 +81,6 @@ class MaterialBase(BaseModel):
         if v > _MAX_SHEET_COST_ARS:
             raise ValueError(f"El costo de chapa no puede superar {_MAX_SHEET_COST_ARS}")
         return v
-
-
-class MaterialCreate(MaterialBase):
-    material_type: str
-    alloy: Optional[str] = None
-
-    @field_validator("material_type")
-    @classmethod
-    def _validate_material_type(cls, v: str) -> str:
-        return clean_required_text(v, field_name="El tipo de material", min_length=1, max_length=100)
-
-    @field_validator("alloy")
-    @classmethod
-    def _validate_alloy(cls, v: Optional[str]) -> Optional[str]:
-        return clean_optional_text(v, max_length=100)
 
 
 class MaterialUpdate(BaseModel):
@@ -132,11 +138,20 @@ class MaterialUpdate(BaseModel):
         return v
 
 
-class MaterialRead(MaterialBase):
+class MaterialRead(BaseModel):
+    """Sin validadores a propósito: es el modelo de LECTURA. Nunca debe
+    rechazar una fila ya guardada, sin importar qué tan fuera de rango
+    esté un valor cargado antes de que existieran los límites de arriba."""
+
     id: int
-    company_id: int
+    name: str
     material_type: Optional[str] = None
     alloy: Optional[str] = None
+    thickness_mm: float
+    sheet_width_mm: float
+    sheet_height_mm: float
+    sheet_cost_ars: float
+    company_id: int
     active: bool
     created_at: datetime
     updated_at: datetime

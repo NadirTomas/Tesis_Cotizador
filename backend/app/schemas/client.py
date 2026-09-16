@@ -7,6 +7,14 @@ from app.schemas.validators import clean_optional_text, clean_required_text, val
 
 
 class ClientBase(BaseModel):
+    """Solo para escritura (ClientCreate la hereda). ClientRead es un
+    modelo aparte y deliberadamente sin estos validators: un cliente ya
+    guardado en producción con un CUIT/email/nombre que no cumple estas
+    reglas (cargado antes de que existieran) debe poder seguir
+    leyéndose tal cual — nunca romper un GET. Ver el incidente de
+    material.py del 2026-09-16: el mismo error de heredar validators de
+    escritura en el modelo de lectura tiró 500 en /materials."""
+
     name: str
     cuit_cuil: Optional[str] = None
     phone: Optional[str] = None
@@ -94,8 +102,18 @@ class ClientUpdate(BaseModel):
         return v
 
 
-class ClientRead(ClientBase):
+class ClientRead(BaseModel):
+    """Sin validators a propósito: es el modelo de LECTURA, nunca debe
+    rechazar una fila ya guardada por no cumplir una regla agregada
+    después de que ese dato ya existía."""
+
     id: int
+    name: str
+    cuit_cuil: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
     company_id: int
     active: bool
     created_at: datetime

@@ -3,8 +3,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app.db.init_db import init_db
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.main import app
+from app.models.client import Client
 
 client = TestClient(app)
 
@@ -128,3 +129,33 @@ def test_client_update_rejects_blank_name():
 
     res = client.put(f"/clients/{client_id}", json={"name": "   "}, headers=headers)
     assert res.status_code == 422
+
+
+def test_reading_a_pre_existing_client_out_of_the_new_rules_never_500s():
+    """Regresión del mismo incidente de material.py (2026-09-16):
+    ClientRead heredaba los field_validators de ClientBase (pensados para
+    escritura), así que un cliente YA guardado con un CUIT/teléfono/email
+    que no cumple las reglas nuevas (cargado antes de que existieran)
+    rompía GET /clients con 500 en vez de simplemente mostrarse."""
+    headers = _headers()
+    res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
+    client_id = res.json()["id"]
+
+    db = SessionLocal()
+    db.query(Client).filter(Client.id == client_id).update(
+        {
+            "cuit_cuil": "no-es-un-cuit",
+            "phone": "abc",
+            "email": "no-es-un-email",
+        }
+    )
+    db.commit()
+    db.close()
+
+    res = client.get("/clients", headers=headers)
+    assert res.status_code == 200
+    assert res.json()[0]["cuit_cuil"] == "no-es-un-cuit"
+
+    res = client.get(f"/clients/{client_id}", headers=headers)
+    assert res.status_code == 200
+    assert res.json()["email"] == "no-es-un-email"
