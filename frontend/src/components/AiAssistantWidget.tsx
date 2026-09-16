@@ -136,8 +136,9 @@ export default function AiAssistantWidget() {
             height: 520,
             maxHeight: "70vh",
             zIndex: 1299,
-            bgcolor: "#0F1117",
-            border: "1px solid #1E2028",
+            bgcolor: "background.paper",
+            border: "1px solid",
+            borderColor: "divider",
             borderRadius: "12px",
             boxShadow: "0 16px 48px rgba(0, 0, 0, 0.6)",
             display: "flex",
@@ -150,21 +151,22 @@ export default function AiAssistantWidget() {
             sx={{
               px: 2,
               py: 1.5,
-              borderBottom: "1px solid #1E2028",
+              borderBottom: "1px solid",
+              borderColor: "divider",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
             }}
           >
             <Box>
-              <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#E8E9EB" }}>
+              <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: "text.primary" }}>
                 Asistente IA
               </Typography>
-              <Typography sx={{ fontSize: "0.68rem", color: "#6B7280" }}>
+              <Typography sx={{ fontSize: "0.68rem", color: "text.secondary" }}>
                 IA local · las respuestas se generan en tu dispositivo
               </Typography>
             </Box>
-            <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: "#6B7280" }}>
+            <IconButton size="small" onClick={() => setOpen(false)} sx={{ color: "text.secondary" }}>
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>
@@ -172,14 +174,14 @@ export default function AiAssistantWidget() {
           {/* Body */}
           <Box ref={scrollRef} sx={{ flex: 1, overflowY: "auto", p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
             {status === "unsupported" && (
-              <Typography sx={{ fontSize: "0.85rem", color: "#8B92A7" }}>
+              <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
                 El asistente IA local requiere un navegador y dispositivo compatibles con WebGPU.
               </Typography>
             )}
 
             {status === "loading" && (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 1 }}>
-                <Typography sx={{ fontSize: "0.85rem", color: "#8B92A7" }}>
+                <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
                   Preparando el asistente local. La primera carga puede tardar unos minutos porque el
                   modelo se descarga en este dispositivo.
                 </Typography>
@@ -188,14 +190,14 @@ export default function AiAssistantWidget() {
                   value={Math.round(progress * 100)}
                 />
                 {progressText && (
-                  <Typography sx={{ fontSize: "0.72rem", color: "#6B7280" }}>{progressText}</Typography>
+                  <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>{progressText}</Typography>
                 )}
               </Box>
             )}
 
             {status === "error" && (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                <Typography sx={{ fontSize: "0.85rem", color: "#F87171" }}>
+                <Typography sx={{ fontSize: "0.85rem", color: "error.main" }}>
                   No se pudo inicializar el asistente local{errorMessage ? `: ${errorMessage}` : "."}
                 </Typography>
                 <Chip label="Reintentar" onClick={handleRetry} size="small" sx={{ alignSelf: "flex-start" }} />
@@ -204,7 +206,7 @@ export default function AiAssistantWidget() {
 
             {(status === "ready" || status === "generating") && messages.length === 0 && (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                <Typography sx={{ fontSize: "0.85rem", color: "#8B92A7" }}>
+                <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
                   Asistente listo. Preguntame cómo usar CotizaLaser.
                 </Typography>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -221,15 +223,15 @@ export default function AiAssistantWidget() {
                 sx={{
                   alignSelf: m.role === "user" ? "flex-end" : "flex-start",
                   maxWidth: "85%",
-                  bgcolor: m.role === "user" ? "rgba(255, 107, 0, 0.15)" : "#171922",
+                  bgcolor: m.role === "user" ? "rgba(255, 107, 0, 0.15)" : "background.default",
                   border: "1px solid",
-                  borderColor: m.role === "user" ? "rgba(255, 107, 0, 0.3)" : "#1E2028",
+                  borderColor: m.role === "user" ? "rgba(255, 107, 0, 0.3)" : "divider",
                   borderRadius: "10px",
                   px: 1.5,
                   py: 1,
                 }}
               >
-                <Typography sx={{ fontSize: "0.85rem", color: "#E8E9EB", whiteSpace: "pre-wrap" }}>
+                <Typography sx={{ fontSize: "0.85rem", color: "text.primary", whiteSpace: "pre-wrap" }}>
                   {m.content || (status === "generating" && i === messages.length - 1 ? "…" : "")}
                 </Typography>
               </Box>
@@ -238,13 +240,13 @@ export default function AiAssistantWidget() {
             {status === "generating" && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <CircularProgress size={12} />
-                <Typography sx={{ fontSize: "0.72rem", color: "#6B7280" }}>Generando respuesta…</Typography>
+                <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>Generando respuesta…</Typography>
               </Box>
             )}
           </Box>
 
           {/* Footer */}
-          <Box sx={{ p: 1.5, borderTop: "1px solid #1E2028", display: "flex", gap: 1 }}>
+          <Box sx={{ p: 1.5, borderTop: "1px solid", borderColor: "divider", display: "flex", gap: 1 }}>
             <TextField
               size="small"
               fullWidth

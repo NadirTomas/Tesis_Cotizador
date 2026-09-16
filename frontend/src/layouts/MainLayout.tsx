@@ -6,6 +6,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Tooltip,
   Typography,
   Button,
   Divider,
@@ -28,7 +29,10 @@ import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
+import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
 import { useAuth } from "../context/AuthContext";
+import { useThemeMode } from "../context/ThemeModeContext";
 import AiAssistantWidget from "../components/AiAssistantWidget";
 
 const DRAWER_WIDTH = 232;
@@ -57,12 +61,18 @@ const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [mobileOpen, setMobileOpen] = useState(false);
   const { logout, clearCompany, companyName, companyRole } = useAuth();
+  const { mode, toggleMode } = useThemeMode();
   const items = companyRole === "owner"
     ? [...navItems, { label: "Empleados", path: "/employees", icon: <GroupOutlinedIcon fontSize="small" /> }]
     : navItems;
+
+  // Overlay sutil para hovers sobre superficies del sidebar: blanco-alfa se
+  // ve bien sobre fondo oscuro, pero es invisible sobre fondo claro.
+  const hoverOverlay = isDark ? "rgba(255,255,255,0.04)" : "rgba(20,22,28,0.045)";
 
   const isActive = (path: string, exact?: boolean) => {
     if (exact) return location.pathname === path;
@@ -90,11 +100,12 @@ const MainLayout = () => {
             alignItems: "center",
             gap: 1,
             px: 1.5,
-            bgcolor: "#0A0B0E",
-            borderBottom: "1px solid #1A1C24",
+            bgcolor: "background.paper",
+            borderBottom: "1px solid",
+            borderColor: "divider",
           }}
         >
-          <IconButton onClick={() => setMobileOpen(true)} sx={{ color: "#E8E9EB" }}>
+          <IconButton onClick={() => setMobileOpen(true)} sx={{ color: "text.primary" }}>
             <MenuIcon />
           </IconButton>
           <Typography
@@ -103,12 +114,18 @@ const MainLayout = () => {
               fontWeight: 700,
               fontSize: "1.05rem",
               letterSpacing: "0.05em",
-              color: "#E8E9EB",
+              color: "text.primary",
               textTransform: "uppercase",
+              flex: 1,
             }}
           >
             {companyName ?? "CotizaLaser"}
           </Typography>
+          <Tooltip title={mode === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
+            <IconButton onClick={toggleMode} sx={{ color: "text.secondary" }} aria-label="Cambiar tema">
+              {mode === "dark" ? <LightModeOutlinedIcon fontSize="small" /> : <DarkModeOutlinedIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
         </Box>
       )}
 
@@ -124,15 +141,16 @@ const MainLayout = () => {
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
             boxSizing: "border-box",
-            bgcolor: "#0A0B0E",
-            borderRight: "1px solid #1A1C24",
+            bgcolor: "background.paper",
+            borderRight: "1px solid",
+            borderColor: "divider",
             display: "flex",
             flexDirection: "column",
           },
         }}
       >
         {/* Logo */}
-        <Box sx={{ px: 2.5, py: 3, borderBottom: "1px solid #1A1C24" }}>
+        <Box sx={{ px: 2.5, py: 3, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
           <Box
             sx={{ display: "flex", alignItems: "center", gap: 1.5, cursor: "pointer" }}
             onClick={() => goTo("/")}
@@ -183,7 +201,7 @@ const MainLayout = () => {
                   fontWeight: 700,
                   fontSize: "1.1rem",
                   letterSpacing: "0.08em",
-                  color: "#E8E9EB",
+                  color: "text.primary",
                   lineHeight: 1,
                   textTransform: "uppercase",
                 }}
@@ -196,7 +214,7 @@ const MainLayout = () => {
               <Typography
                 sx={{
                   fontSize: "0.58rem",
-                  color: "#3D4050",
+                  color: "text.secondary",
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
                   fontFamily: '"DM Sans", sans-serif',
@@ -208,19 +226,32 @@ const MainLayout = () => {
               </Typography>
             </Box>
           </Box>
+
+          {!isMobile && (
+            <Tooltip title={mode === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
+              <IconButton
+                size="small"
+                onClick={toggleMode}
+                aria-label="Cambiar tema"
+                sx={{ color: "text.secondary", "&:hover": { color: "text.primary", bgcolor: hoverOverlay } }}
+              >
+                {mode === "dark" ? <LightModeOutlinedIcon fontSize="small" /> : <DarkModeOutlinedIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
 
         {/* Empresa activa */}
         {companyName && (
-          <Box sx={{ px: 2.5, py: 1.5, borderBottom: "1px solid #1A1C24", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-            <Typography noWrap sx={{ fontSize: "0.78rem", color: "#8B92A7", fontWeight: 500 }}>
+          <Box sx={{ px: 2.5, py: 1.5, borderBottom: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+            <Typography noWrap sx={{ fontSize: "0.78rem", color: "text.secondary", fontWeight: 500 }}>
               {companyName}
             </Typography>
             <IconButton
               size="small"
               title="Cambiar empresa"
               onClick={() => { clearCompany(); goTo("/select-company"); }}
-              sx={{ color: "#6B7280", "&:hover": { color: "#E8E9EB" } }}
+              sx={{ color: "text.secondary", "&:hover": { color: "text.primary" } }}
             >
               <SwapHorizIcon fontSize="small" />
             </IconButton>
@@ -240,14 +271,12 @@ const MainLayout = () => {
                   px: 1.5,
                   py: 0.9,
                   position: "relative",
-                  color: active ? "#E8E9EB" : "#6B7280",
+                  color: active ? "text.primary" : "text.secondary",
                   bgcolor: active ? "rgba(255, 107, 0, 0.1)" : "transparent",
                   borderLeft: active ? "2px solid #FF6B00" : "2px solid transparent",
                   "&:hover": {
-                    bgcolor: active
-                      ? "rgba(255, 107, 0, 0.12)"
-                      : "rgba(255,255,255,0.04)",
-                    color: "#C8C9CB",
+                    bgcolor: active ? "rgba(255, 107, 0, 0.12)" : hoverOverlay,
+                    color: "text.primary",
                   },
                   transition: "all 0.15s ease",
                 }}
@@ -292,7 +321,7 @@ const MainLayout = () => {
             variant="text"
             startIcon={<LogoutIcon fontSize="small" />}
             onClick={() => { logout(); navigate("/login"); }}
-            sx={{ py: 0.8, color: "#6B7280", fontSize: "0.8rem", "&:hover": { color: "#E8E9EB", bgcolor: "rgba(255,255,255,0.04)" } }}
+            sx={{ py: 0.8, color: "text.secondary", fontSize: "0.8rem", "&:hover": { color: "text.primary", bgcolor: hoverOverlay } }}
           >
             Cerrar sesión
           </Button>

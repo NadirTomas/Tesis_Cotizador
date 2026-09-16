@@ -27,6 +27,7 @@ import { useNavigate } from "react-router-dom";
 
 import { getClients, type Client } from "../services/clients";
 import { getStats, type DashboardStats } from "../services/quotations";
+import { formatLongDate } from "../utils/date";
 
 const STATUS_CONFIG: Record<string, { label: string; color: "default" | "warning" | "success" | "error" | "info" }> = {
   draft:     { label: "Borrador",  color: "warning" },
@@ -76,6 +77,9 @@ const HomePage = () => {
         </Box>
         <Typography sx={{ color: "text.secondary", fontSize: "0.875rem", ml: "19px" }}>
           Sistema de cotización para corte láser de fibra
+        </Typography>
+        <Typography sx={{ color: "text.secondary", fontSize: "0.8rem", ml: "19px", mt: 0.5, opacity: 0.85 }}>
+          {formatLongDate()}
         </Typography>
       </Box>
 
@@ -159,7 +163,7 @@ const HomePage = () => {
                           onClick={() => navigate(`/quotations/${q.id}`)}
                         >
                           <TableCell>
-                            <span className="mono" style={{ color: "#E8E9EB", fontWeight: 500 }}>{q.number}</span>
+                            <span className="mono" style={{ color: "inherit", fontWeight: 500 }}>{q.number}</span>
                           </TableCell>
                           <TableCell sx={{ fontWeight: 500 }}>{clientName(q.client_id)}</TableCell>
                           <TableCell><Chip label={sc.label} color={sc.color} size="small" /></TableCell>
