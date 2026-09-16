@@ -125,10 +125,19 @@ describe("aiAssistant integration", () => {
   });
 
   it("uses precision-oriented generation parameters", () => {
+    // max_tokens subido de 300 a 450: una respuesta tecnica real (escalado
+    // de costos con quantity) se cortaba a mitad de frase antes de llegar
+    // al resumen final.
     expect(AI_GENERATION_CONFIG).toEqual({
       temperature: 0.15,
       top_p: 0.9,
-      max_tokens: 300,
+      max_tokens: 450,
     });
+  });
+
+  it("states plainly why machine cost isn't strictly proportional to quantity", () => {
+    expect(AI_SYSTEM_PROMPT).toContain(
+      "Cuando aumenta quantity, el costo de máquina aumenta porque aumenta el tiempo total de corte. No aumenta de forma estrictamente proporcional, porque setup_time_min se cobra una sola vez por lote/trabajo."
+    );
   });
 });

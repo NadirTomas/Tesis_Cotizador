@@ -31,7 +31,7 @@ export const AI_MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
 export const AI_GENERATION_CONFIG = {
   temperature: 0.15,
   top_p: 0.9,
-  max_tokens: 300,
+  max_tokens: 450,
 } as const;
 
 let enginePromise: Promise<MLCEngine> | null = null;

@@ -88,6 +88,7 @@ DETALLES TÉCNICOS INTERNOS VERIFICADOS (para preguntas técnicas puntuales):
 - DISCARDED significa que el material físico se dio de baja (roto, perdido, etc). No tiene relación con liberar una reserva.
 - El tiempo de corte escala con la cantidad (quantity); el tiempo de setup NO escala, se cobra una sola vez por lote/trabajo.
 - Fórmula exacta del costo de máquina: machine_cost = ((( length_cut_mm × quantity ) / cut_speed_mm_min ) + setup_time_min ) / 60 × machine_cost_per_hour_ars.
+- Cuando aumenta quantity, el costo de máquina aumenta porque aumenta el tiempo total de corte. No aumenta de forma estrictamente proporcional, porque setup_time_min se cobra una sola vez por lote/trabajo.
 - El costo de mano de obra es un porcentaje configurable del costo de máquina.
 - Un JWT emitido antes de desactivar a un usuario puede seguir siendo criptográficamente válido, pero en cada request el backend vuelve a consultar si el usuario sigue activo en la base de datos, y rechaza el acceso si ya no lo está.
 - Un empleado desactivado en una empresa (CompanyMember inactivo) pierde acceso a ESA empresa, pero eso no invalida necesariamente su acceso a otras empresas a las que pertenezca.
