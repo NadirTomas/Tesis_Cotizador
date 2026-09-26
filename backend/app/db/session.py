@@ -13,10 +13,23 @@ if _db_url.startswith("postgres://"):
 
 _is_sqlite = _db_url.startswith("sqlite")
 
-engine = create_engine(
-    _db_url,
-    connect_args={"check_same_thread": False} if _is_sqlite else {},
-)
+if _is_sqlite:
+    engine = create_engine(_db_url, connect_args={"check_same_thread": False})
+else:
+    # Defaults de SQLAlchemy (pool_size=5, max_overflow=10 => 15 conexiones
+    # como maximo) se agotaban con una sola pantalla cargando ~17 previews de
+    # pieza en paralelo (cada AuthedImage dispara su propio fetch autenticado),
+    # tumbando de paso endpoints sin relacion que competian por el mismo pool
+    # (incidente en produccion 2026-09-26, QueuePool TimeoutError). pool_pre_ping
+    # evita reusar conexiones que Railway haya cortado silenciosamente por su
+    # red privada.
+    engine = create_engine(
+        _db_url,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_pre_ping=True,
+    )
 
 if _is_sqlite:
     # SQLite no enforce foreign keys por defecto (a diferencia de Postgres,
