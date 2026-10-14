@@ -143,6 +143,15 @@ La geometría de stock (chapas, retazos, colocación) se resuelve con Shapely en
 ### Una `StockReservation` `ACTIVE` por chapa
 Se descartó permitir múltiples piezas reservadas simultáneamente sobre una misma chapa en esta versión — es el enfoque simple y seguro, no el más expresivo posible.
 
+### Remitos: lock de fila sobre la cotización (excepción razonada al patrón de UPDATE condicional)
+El módulo de remitos (2026-10-14) debe garantizar `entregado ≤ cotizado`, una invariante sobre una **suma de varias filas** que un UPDATE condicional de una fila no puede expresar. Emitir/anular toman `SELECT ... FOR NO KEY UPDATE` sobre la cotización (con `FOR UPDATE` hubo un deadlock real contra `confirm-cut`, que toma `FOR KEY SHARE` por sus FK: corregido el 2026-10-14) (SQLAlchemy solo lo emite en Postgres; en SQLite es inocuo) en orden fijo cotización → remito, y revalidan cantidades con el lock tomado; las transiciones de estado se confirman tras bloquear el remito. La numeración usa `UPDATE ... RETURNING` sobre un contador por empresa (`document_sequences`), no `MAX()+1`. Una prueba de mutación (quitar el lock) hizo fallar los escenarios de sobreentrega y cancelación-vs-emisión, confirmando que los tests detectan la carrera. Ver `docs/MODULO_REMITOS.md` §8.
+
+### Tests de concurrencia: interleavings deterministas, no "quién gana"
+Un test que dispara dos requests y exige que ganen ambos lados depende del scheduler del SO y es intermitente por construcción (así fallaba `test_quotation_cancel_confirm_race_postgres.py` ~50 % de las veces, también en `HEAD`). Regla adoptada (2026-10-14): la carrera estadística solo afirma la invariante de seguridad; cada orden concreto se fuerza con `tests/_pg_sync.py` (pausar una operación a mitad de su transacción con sus locks tomados, arrancar la otra, esperar en `pg_stat_activity` a que quede BLOQUEADA, liberar). Una prueba de mutación (quitar el lock) confirma que estos tests detectan la falta de serialización.
+
+### Verificar los PDF renderizándolos, no solo leyendo su texto
+Los tests que buscan texto en el PDF no vieron que el encabezado de la tabla del remito era ilegible (texto oscuro sobre fondo oscuro) ni que las hojas 2..n no identificaban el documento. Se detectó renderizando el PDF a imagen (herramienta temporal `pypdfium2` en un venv descartable, sin sumarla a `requirements.txt`).
+
 ### UPDATE condicional (`WHERE status = '...'`) en vez de `SELECT FOR UPDATE`
 Elegido explícitamente por portabilidad entre SQLite (tests) y Postgres (producción), sin locking dialect-specific. Validado después contra concurrencia real de Postgres en la pasada de hardening (ver §16) — el patrón resultó correcto, no solo portable.
 
@@ -294,6 +303,9 @@ Formato breve — solo los que dejaron una regla o decisión, no todos los bugs.
 *Solución*: unificado a `dxf_filename` en los dos lugares que faltaban. Encontrado escribiendo tests de DXF en agosto, no antes.
 
 ---
+
+### Remitos de entrega (14/10/2026)
+Nuevo módulo de remitos (entregas parciales/completas, estados `DRAFT/ISSUED/VOIDED`, numeración `R-000001` por empresa, PDF, anulación con motivo). Documentación completa en `docs/MODULO_REMITOS.md`. Migración `b9c0d1e2f3a4` (head actual, 16 migraciones). Regla confirmada por el negocio ese mismo día: **un remito solo se puede emitir si el corte de sus ítems está confirmado** (reserva de stock `CONSUMED` vinculada al ítem); los borradores se pueden preparar antes. No se creó ninguna bandera ni estado nuevo: se reutiliza el flujo reservar → confirmar corte. Se verifica bajo el lock de la cotización; como `CONSUMED` es terminal, no hay riesgo de remitos emitidos con corte "des-confirmado". Límite documentado: el corte es por ítem, no por unidad (`docs/MODULO_REMITOS.md` §5.1).
 
 ## 9. Migraciones
 

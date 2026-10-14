@@ -230,48 +230,8 @@ def _load_thumbnail(preview_data: bytes | None, size_mm: float) -> Image | None:
 
 
 # ─── Generador principal ──────────────────────────────────────────────────────
-def generate_quotation_pdf(
-    db: Session,
-    quotation_id: int,
-    company_id: int,
-    output_dir: Path | None = None,
-) -> Path:
-    quotation = (
-        db.query(Quotation)
-        .filter(Quotation.id == quotation_id, Quotation.company_id == company_id)
-        .first()
-    )
-    if not quotation:
-        raise ValueError("Quotation not found")
-
-    company = db.query(Company).filter(Company.id == company_id).first()
-    client  = quotation.client
-    items   = quotation.items
-
-    if output_dir is None:
-        settings = get_settings()
-        output_dir = Path(settings.PDF_STORAGE_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"quotation_{quotation.id}.pdf"
-
-    S = _styles()
-
-    doc = SimpleDocTemplate(
-        str(output_path),
-        pagesize=A4,
-        leftMargin=MARGIN,
-        rightMargin=MARGIN,
-        topMargin=MARGIN,
-        bottomMargin=MARGIN,
-    )
-
-    story = []
-
-    # ── 1. Header ─────────────────────────────────────────────────────────────
-    company_name = company.company_name if company else "CotizaLaser"
-
-    # Logo: imagen si existe, sino caja oscura con texto
-    logo_col_w = USABLE_W * 0.38
+def build_company_logo(company, company_name: str, S: dict, logo_col_w: float):
+    """Bloque de logo/nombre de la empresa para encabezados de PDF (cotización y remito)."""
     logo_data = company.logo_data if company else None
 
     if logo_data:
@@ -317,6 +277,51 @@ def generate_quotation_pdf(
             ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]))
+    return logo_table
+
+
+def generate_quotation_pdf(
+    db: Session,
+    quotation_id: int,
+    company_id: int,
+    output_dir: Path | None = None,
+) -> Path:
+    quotation = (
+        db.query(Quotation)
+        .filter(Quotation.id == quotation_id, Quotation.company_id == company_id)
+        .first()
+    )
+    if not quotation:
+        raise ValueError("Quotation not found")
+
+    company = db.query(Company).filter(Company.id == company_id).first()
+    client  = quotation.client
+    items   = quotation.items
+
+    if output_dir is None:
+        settings = get_settings()
+        output_dir = Path(settings.PDF_STORAGE_DIR)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"quotation_{quotation.id}.pdf"
+
+    S = _styles()
+
+    doc = SimpleDocTemplate(
+        str(output_path),
+        pagesize=A4,
+        leftMargin=MARGIN,
+        rightMargin=MARGIN,
+        topMargin=MARGIN,
+        bottomMargin=MARGIN,
+    )
+
+    story = []
+
+    # ── 1. Header ─────────────────────────────────────────────────────────────
+    company_name = company.company_name if company else "CotizaLaser"
+
+    logo_col_w = USABLE_W * 0.38
+    logo_table = build_company_logo(company, company_name, S, logo_col_w)
 
     right_header = [
         Paragraph("Número de cotización:", S["doc_label"]),

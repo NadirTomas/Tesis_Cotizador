@@ -19,6 +19,7 @@ from app.schemas.quotation import QuotationCreate, QuotationRead
 from app.schemas.quotation_event import QuotationEventRead
 from app.services.pdf_generator import generate_quotation_pdf
 from app.services.company_guard import get_current_company
+from app.services.delivery_notes import has_issued_delivery_notes
 from app.services.quotation_events import log_event
 from app.services.stock_reservations import release_quotation_reservations
 
@@ -234,13 +235,20 @@ def update_status(
     db: Session = Depends(get_db),
     member: CompanyMember = Depends(get_current_company),
 ):
-    quotation = (
-        db.query(Quotation)
-        .filter(Quotation.id == quotation_id, Quotation.company_id == member.company_id)
-        .first()
-    )
+    query = db.query(Quotation).filter(Quotation.id == quotation_id, Quotation.company_id == member.company_id)
+    if status == "cancelled":
+        # Mismo lock de fila que usa la emisión de remitos (FOR NO KEY UPDATE: no choca con los
+        # FOR KEY SHARE de las FK que toma confirm-cut al insertar movimientos; con FOR UPDATE había deadlock):
+        # una emisión simultánea no puede quedar comiteada después de pasar la verificación de abajo.
+        query = query.with_for_update(key_share=True)
+    quotation = query.first()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+    if status == "cancelled" and has_issued_delivery_notes(db, quotation.id):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede cancelar: la cotización tiene remitos emitidos. Anulá los remitos primero.",
+        )
     allowed = VALID_TRANSITIONS.get(quotation.status, [])
     if status not in allowed:
         raise HTTPException(

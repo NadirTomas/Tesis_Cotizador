@@ -13,6 +13,7 @@ from app.api.v1.routes_admin import router as admin_router
 from app.api.v1.routes_auth import router as auth_router
 from app.api.v1.routes_client_errors import router as client_errors_router
 from app.api.v1.routes_clients import router as clients_router
+from app.api.v1.routes_delivery_notes import router as delivery_notes_router
 from app.api.v1.routes_companies import router as companies_router
 from app.api.v1.routes_health import router as health_router
 from app.api.v1.routes_machine_configs import router as machine_configs_router
@@ -92,6 +93,7 @@ app.include_router(clients_router)
 app.include_router(machine_configs_router)
 app.include_router(pieces_router)
 app.include_router(quotations_router)
+app.include_router(delivery_notes_router)
 app.include_router(quotation_items_router)
 app.include_router(nesting_router)
 app.include_router(stock_router)

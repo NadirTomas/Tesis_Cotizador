@@ -77,6 +77,8 @@ jobs:
         run: |
           pytest -q tests/test_postgres_hardening_integration.py
           pytest -q tests/test_quotation_cancel_confirm_race_postgres.py
+          pytest -q tests/test_delivery_notes_concurrency_postgres.py
+          pytest -q tests/test_delivery_notes_interleavings_postgres.py
 
   frontend:
     name: Frontend (tests, tsc, build)

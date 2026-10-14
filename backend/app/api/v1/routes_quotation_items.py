@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.company_member import CompanyMember
 from app.services.company_guard import get_current_company
+from app.services.delivery_notes import quotation_item_is_referenced
 from app.models.material import Material
 from app.models.piece import Piece
 from app.models.quotation import Quotation
@@ -163,6 +164,11 @@ def delete_quotation_item(
         raise HTTPException(status_code=404, detail="Item not found")
     quotation = db.query(Quotation).filter(Quotation.id == item.quotation_id).first()
     _require_deletable(quotation)
+    if quotation_item_is_referenced(db, item.id):
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: el ítem figura en remitos de entrega de esta cotización.",
+        )
     piece = db.query(Piece).filter(Piece.id == item.piece_id).first()
     piece_label = piece.name if piece else f"pieza #{item.piece_id}"
     log_event(db, item.quotation_id, "item_removed", f"Pieza eliminada: {piece_label}", member.user_id)

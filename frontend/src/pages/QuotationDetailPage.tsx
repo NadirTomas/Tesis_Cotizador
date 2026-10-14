@@ -41,6 +41,7 @@ import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
 import { openAuthedResource } from "../services/authedResource";
+import DeliveryStatusPanel from "../components/DeliveryStatusPanel";
 import {
   deleteQuotationItem,
   getQuotation,
@@ -361,6 +362,12 @@ const QuotationDetailPage = () => {
           <Typography variant="body2" color="text.secondary" mt={1.5}>{quotation.notes}</Typography>
         )}
       </Paper>
+
+      <DeliveryStatusPanel
+        quotationId={quotation.id}
+        quotationStatus={quotation.status}
+        refreshKey={Object.values(itemReservations).filter((r) => r.cut).length}
+      />
 
       {/* Ítems */}
       <Box>

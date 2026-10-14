@@ -102,3 +102,7 @@ login → seleccionar/crear empresa
 ```
 
 El detalle completo del estado del sistema (qué está implementado, qué falta, decisiones de arquitectura y limitaciones conocidas) vive en [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md).
+
+## Documentación adicional
+
+- [Módulo de remitos](docs/MODULO_REMITOS.md): entregas parciales/completas, numeración, anulación, PDF y pruebas.

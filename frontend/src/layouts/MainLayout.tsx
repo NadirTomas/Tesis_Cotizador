@@ -26,6 +26,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import GridViewOutlinedIcon from "@mui/icons-material/GridViewOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import LogoutIcon from "@mui/icons-material/Logout";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
@@ -44,6 +45,7 @@ const navItems = [
     path: "/quotations",
     icon: <RequestQuoteOutlinedIcon fontSize="small" />,
   },
+  { label: "Remitos", path: "/delivery-notes", icon: <LocalShippingOutlinedIcon fontSize="small" /> },
   {
     label: "Piezas",
     path: "/pieces",

@@ -3,6 +3,8 @@
 from app.models.client import Client
 from app.models.company import Company
 from app.models.company_member import CompanyMember, CompanyRole
+from app.models.delivery_note import DeliveryNote, DeliveryNoteItem
+from app.models.document_sequence import DocumentSequence
 from app.models.machine_config import MachineConfig
 from app.models.material import Material
 from app.models.piece import Piece
@@ -19,6 +21,9 @@ __all__ = [
     "Company",
     "CompanyMember",
     "CompanyRole",
+    "DeliveryNote",
+    "DeliveryNoteItem",
+    "DocumentSequence",
     "MachineConfig",
     "Material",
     "Piece",

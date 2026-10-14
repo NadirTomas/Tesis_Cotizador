@@ -6,6 +6,9 @@ import MainLayout from "./layouts/MainLayout";
 import LoginPage from "./pages/LoginPage";
 
 const ClientsPage = lazy(() => import("./pages/ClientsPage"));
+const DeliveryNotesPage = lazy(() => import("./pages/DeliveryNotesPage"));
+const DeliveryNoteDetailPage = lazy(() => import("./pages/DeliveryNoteDetailPage"));
+const DeliveryNoteFormPage = lazy(() => import("./pages/DeliveryNoteFormPage"));
 const CompanyPage = lazy(() => import("./pages/CompanyPage"));
 const CreateCompanyPage = lazy(() => import("./pages/CreateCompanyPage"));
 const EmployeesPage = lazy(() => import("./pages/EmployeesPage"));
@@ -65,6 +68,10 @@ function App() {
               <Route path="/clients" element={<ClientsPage />} />
               <Route path="/quotations" element={<QuotationsPage />} />
               <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+              <Route path="/delivery-notes" element={<DeliveryNotesPage />} />
+              <Route path="/delivery-notes/new" element={<DeliveryNoteFormPage />} />
+              <Route path="/delivery-notes/:id" element={<DeliveryNoteDetailPage />} />
+              <Route path="/delivery-notes/:id/edit" element={<DeliveryNoteFormPage />} />
               <Route path="/materials" element={<MaterialsPage />} />
               <Route path="/machine-configs" element={<MachineConfigsPage />} />
               <Route path="/company" element={<CompanyPage />} />

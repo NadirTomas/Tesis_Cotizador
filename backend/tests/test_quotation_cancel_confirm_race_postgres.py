@@ -66,6 +66,7 @@ from app.api.v1.routes_pieces import limiter as _pieces_limiter  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.main import limiter as _main_limiter  # noqa: E402
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -166,7 +167,7 @@ def _setup_accepted_with_reservation():
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     quotation_id = res.json()["id"]
     client.patch(f"/quotations/{quotation_id}/status", json={"status": "sent"}, headers=headers)
@@ -255,13 +256,86 @@ def test_concurrent_cancel_and_confirm_cut_never_produce_the_forbidden_state():
 
         return "cancel" if cancel_won else "confirm"
 
-    # Corremos varias veces: el scheduler del SO decide qué thread llega
-    # primero a Postgres, así que una sola corrida podría no ejercitar las
-    # dos ramas. 25 intentos alcanzan para observar ambos ganadores en la
-    # práctica sin hacer el test excesivamente lento.
+    # Corremos varias veces para exigirle la invariante a muchos intercalados reales. Qué request gana en
+    # cada corrida lo decide el scheduler del SO (el propio comentario de arriba lo reconoce: el hilo enviado
+    # primero tiende a ganar siempre), así que ESO no se afirma acá. Lo que sí se afirma, en cada una de las
+    # 25 corridas, es la invariante de seguridad (arriba). Que AMBAS ramas se ejerciten se garantiza de forma
+    # determinista en los tests de más abajo, que pausan una operación a mitad de su transacción.
     outcomes = _run_n_times(25, _one_race)
+    assert len(outcomes) == 25 and set(outcomes) <= {"cancel", "confirm"}
     print(f"\nresultados de las 25 corridas: {outcomes.count('cancel')} cancel, {outcomes.count('confirm')} confirm")
-    assert set(outcomes) == {"cancel", "confirm"}, (
-        "las 25 corridas tendrían que ejercitar ambas ramas de la invariante "
-        f"(alternando qué request se envía primero) -- se observó: {outcomes}"
-    )
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Las dos ramas de la carrera, de forma DETERMINISTA (sin depender del scheduler).
+# Se pausa una operación con sus locks ya tomados, se arranca la otra, se espera a que
+# Postgres la muestre BLOQUEADA y recién entonces se libera la primera.
+# ───────────────────────────────────────────────────────────────────────────
+
+from app.api.v1 import routes_quotations, routes_stock  # noqa: E402
+from tests._pg_sync import Pause, wait_until_blocked  # noqa: E402
+
+
+def _state(headers, quotation_id, stock_id):
+    quotation_status = client.get(f"/quotations/{quotation_id}", headers=headers).json()["status"]
+    stock_status = client.get(f"/stock/{stock_id}", headers=headers).json()["status"]
+    return quotation_status, stock_status
+
+
+def test_branch_confirm_wins_while_cancel_is_waiting_on_the_reservation(monkeypatch):
+    """confirm-cut ya consumió la reserva (sin comitear); cancelar llega, queda bloqueada en el UPDATE de la
+    reserva y, al comitear confirm-cut, debe re-evaluarse contra el valor comiteado y abortar con 409."""
+    _reset_postgres_data()
+    _reset_rate_limits()
+    headers, stock, quotation_id, reservation_id = _setup_accepted_with_reservation()
+
+    pause = Pause()
+    monkeypatch.setattr(routes_stock, "_log_movement", pause.wrap(routes_stock._log_movement))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        confirming = pool.submit(client.post, f"/stock/reservations/{reservation_id}/confirm-cut", headers=headers)
+        pause.wait_reached()
+        cancelling = pool.submit(client.patch, f"/quotations/{quotation_id}/status", json={"status": "cancelled"}, headers=headers)
+        wait_until_blocked(engine)
+        pause.release()
+        confirm_res, cancel_res = confirming.result(), cancelling.result()
+
+    assert confirm_res.status_code == 200
+    assert cancel_res.status_code == 409
+    assert _state(headers, quotation_id, stock["id"]) == ("accepted", "CONSUMED")
+
+
+def test_branch_cancel_wins_while_confirm_cut_is_waiting_on_the_reservation(monkeypatch):
+    """La cancelación ya liberó la reserva (sin comitear); confirm-cut queda bloqueada y, al comitear la
+    cancelación, no encuentra la reserva ACTIVE: pierde con 409 y no consume nada."""
+    _reset_postgres_data()
+    _reset_rate_limits()
+    headers, stock, quotation_id, reservation_id = _setup_accepted_with_reservation()
+
+    pause = Pause()
+    monkeypatch.setattr(routes_quotations, "release_quotation_reservations", pause.wrap(routes_quotations.release_quotation_reservations))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        cancelling = pool.submit(client.patch, f"/quotations/{quotation_id}/status", json={"status": "cancelled"}, headers=headers)
+        pause.wait_reached()
+        confirming = pool.submit(client.post, f"/stock/reservations/{reservation_id}/confirm-cut", headers=headers)
+        wait_until_blocked(engine)
+        pause.release()
+        cancel_res, confirm_res = cancelling.result(), confirming.result()
+
+    assert cancel_res.status_code == 200
+    assert confirm_res.status_code == 409
+    assert _state(headers, quotation_id, stock["id"]) == ("cancelled", "AVAILABLE")
+
+
+def test_sequential_orders_are_also_safe():
+    """Los dos órdenes sin solapamiento: el segundo en llegar es rechazado limpiamente (sin 500)."""
+    for confirm_first in (True, False):
+        _reset_postgres_data()
+        _reset_rate_limits()
+        headers, stock, quotation_id, reservation_id = _setup_accepted_with_reservation()
+        cancel = lambda: client.patch(f"/quotations/{quotation_id}/status", json={"status": "cancelled"}, headers=headers)  # noqa: E731
+        confirm = lambda: client.post(f"/stock/reservations/{reservation_id}/confirm-cut", headers=headers)  # noqa: E731
+        first, second = (confirm(), cancel()) if confirm_first else (cancel(), confirm())
+        assert first.status_code == 200
+        assert second.status_code in (400, 409)
+        expected = ("accepted", "CONSUMED") if confirm_first else ("cancelled", "AVAILABLE")
+        assert _state(headers, quotation_id, stock["id"]) == expected
