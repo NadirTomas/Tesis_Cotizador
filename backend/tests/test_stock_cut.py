@@ -8,6 +8,7 @@ from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
 from app.services.stock_cut import compute_remnants
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -170,7 +171,7 @@ def _full_flow_to_reserved(stock_w=200, stock_h=200, piece_w=100, piece_h=50, mi
 
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
-    res = client.post("/quotations", json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"}, headers=headers)
+    res = client.post("/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers)
     quotation_id = res.json()["id"]
     client.patch(f"/quotations/{quotation_id}/status", json={"status": "sent"}, headers=headers)
     client.patch(f"/quotations/{quotation_id}/status", json={"status": "accepted"}, headers=headers)

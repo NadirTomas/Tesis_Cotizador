@@ -15,6 +15,16 @@ def clean_required_text(value: str, *, field_name: str, min_length: int = 1, max
     return stripped
 
 
+def validate_client_name(value: str) -> str:
+    """Nombre de cliente: persona o razón social. Admite letras, números y
+    signos comerciales (S.R.L., N°, -, &), pero debe incluir al menos una
+    letra — un nombre solo numérico (o numérico con signos) se rechaza."""
+    stripped = clean_required_text(value, field_name="El nombre", min_length=2, max_length=200)
+    if not any(ch.isalpha() for ch in stripped):
+        raise ValueError("El nombre debe incluir al menos una letra (no puede ser solo números)")
+    return stripped
+
+
 def clean_optional_text(value: str | None, *, max_length: int = 300) -> str | None:
     if value is None:
         return None

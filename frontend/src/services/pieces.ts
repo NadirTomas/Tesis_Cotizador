@@ -27,7 +27,7 @@ export interface PieceCreate {
 
 export interface PieceUpdate {
   name?: string;
-  description?: string;
+  description?: string | null;
   material_id?: number;
   active?: boolean;
 }

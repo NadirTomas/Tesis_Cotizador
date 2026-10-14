@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from app.core import clock
+
 _MIN_QUOTATION_YEAR = 2000
 
 
@@ -19,6 +21,22 @@ class QuotationCreate(BaseModel):
     def _validate_year(cls, v: Optional[datetime]) -> Optional[datetime]:
         if v is not None and v.year < _MIN_QUOTATION_YEAR:
             raise ValueError(f"La fecha no puede tener un año anterior a {_MIN_QUOTATION_YEAR}")
+        return v
+
+    @field_validator("issue_date")
+    @classmethod
+    def _validate_issue_date_not_in_past(cls, v: datetime) -> datetime:
+        # issue_date llega como fecha de calendario (el front manda "YYYY-MM-DD" sin hora);
+        # se compara contra "hoy" en la zona del negocio, no la del servidor.
+        if v.date() < clock.business_today():
+            raise ValueError("La fecha de emisión no puede ser anterior a hoy")
+        return v
+
+    @field_validator("exchange_rate")
+    @classmethod
+    def _validate_exchange_rate(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v <= 0:
+            raise ValueError("El tipo de cambio debe ser mayor a 0")
         return v
 
     @model_validator(mode="after")

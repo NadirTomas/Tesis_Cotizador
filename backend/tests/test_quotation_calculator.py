@@ -31,8 +31,10 @@ from app.db.session import SessionLocal, engine
 from app.main import app
 from app.models.machine_config import MachineConfig
 from app.models.piece import Piece
+from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
 from app.services.quotation_calculator import calculate_quotation_item
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -114,7 +116,7 @@ def _create_client_record(headers, name="Cliente"):
 
 
 def _create_quotation(headers, client_id, exchange_rate=None, currency="ARS"):
-    payload = {"client_id": client_id, "issue_date": "2026-08-26T00:00:00", "currency": currency}
+    payload = {"client_id": client_id, "issue_date": issue_iso(), "currency": currency}
     if exchange_rate is not None:
         payload["exchange_rate"] = exchange_rate
     res = client.post("/quotations", json=payload, headers=headers)
@@ -349,7 +351,14 @@ def test_total_usd_is_zero_without_a_valid_exchange_rate(exchange_rate):
     headers, _company_id, material_id = _full_setup()
     piece_id = _create_piece(headers, material_id, area_mm2=100_000.0, length_cut_mm=2000.0)
     client_id = _create_client_record(headers)
-    quotation_id = _create_quotation(headers, client_id, exchange_rate=exchange_rate)
+    # La API ya no acepta un tipo de cambio <= 0; un 0 solo puede venir de datos
+    # viejos, así que se carga directo en DB para seguir probando la defensa del calculador.
+    quotation_id = _create_quotation(headers, client_id, exchange_rate=None)
+    if exchange_rate is not None:
+        db = SessionLocal()
+        db.query(Quotation).filter(Quotation.id == quotation_id).update({"exchange_rate": exchange_rate})
+        db.commit()
+        db.close()
 
     _add_item(headers, quotation_id, piece_id, material_id, quantity=1)
     res = client.get(f"/quotations/{quotation_id}", headers=headers)

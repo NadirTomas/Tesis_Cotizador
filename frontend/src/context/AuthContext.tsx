@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { refreshTokenRequest } from "../services/auth";
+import { clearNestingDraft } from "../utils/nestingDraft";
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 horas
 
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    clearNestingDraft();
     localStorage.removeItem("auth_token");
     localStorage.removeItem("company_id");
     localStorage.removeItem("company_role");
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const clearCompany = () => {
+    clearNestingDraft();
     localStorage.removeItem("company_id");
     localStorage.removeItem("company_role");
     localStorage.removeItem("company_name");

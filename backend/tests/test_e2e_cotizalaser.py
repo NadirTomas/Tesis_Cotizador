@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
+from tests._dates import issue_iso
 
 
 # Paso 13: Test end-to-end del flujo principal de CotizaLaser
@@ -148,8 +149,8 @@ def test_full_flow_rect_100x50():
         "/quotations",
         json={
             "client_id": client_id,
-            "issue_date": "2026-02-06T00:00:00",
-            "due_date": "2026-02-20T00:00:00",
+            "issue_date": issue_iso(),
+            "due_date": issue_iso(30),
             "currency": "ARS",
             "exchange_rate": 1.0,
             "notes": "Test e2e quotation",
@@ -228,7 +229,7 @@ def test_full_flow_including_stock_reservation_cut_and_traceability():
 
     client_id = client.post("/clients", json={"name": "Cliente Test"}, headers=headers).json()["id"]
     quotation_id = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-02-06T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     ).json()["id"]
     item_id = client.post(
         "/quotation-items",

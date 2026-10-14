@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
-from app.schemas.validators import clean_optional_text, clean_required_text, validate_cuit, validate_phone
+from app.schemas.validators import clean_optional_text, validate_client_name, validate_cuit, validate_phone
 
 
 class ClientBase(BaseModel):
@@ -25,7 +25,7 @@ class ClientBase(BaseModel):
     @field_validator("name")
     @classmethod
     def _validate_name(cls, v: str) -> str:
-        return clean_required_text(v, field_name="El nombre", min_length=2, max_length=200)
+        return validate_client_name(v)
 
     @field_validator("cuit_cuil")
     @classmethod
@@ -72,7 +72,7 @@ class ClientUpdate(BaseModel):
     def _validate_name(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        return clean_required_text(v, field_name="El nombre", min_length=2, max_length=200)
+        return validate_client_name(v)
 
     @field_validator("cuit_cuil")
     @classmethod

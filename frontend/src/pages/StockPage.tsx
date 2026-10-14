@@ -29,6 +29,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import { useTouchedFields } from "../hooks/useTouchedFields";
 import { getMaterials, type Material } from "../services/materials";
 import { createStockSheet, getStock, type StockSheet, type StockStatus, type StockType } from "../services/stock";
 
@@ -62,6 +63,7 @@ const StockPage = () => {
   const [newMaterialId, setNewMaterialId] = useState<number | "">("");
   const [newWidth, setNewWidth] = useState(1500);
   const [newHeight, setNewHeight] = useState(3000);
+  const { touch, reset: resetTouched, isTouched } = useTouchedFields();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { load(); }, [materialFilter, statusFilter, typeFilter]);
@@ -90,7 +92,7 @@ const StockPage = () => {
   }
 
   async function handleCreate() {
-    if (newMaterialId === "") return;
+    if (newMaterialId === "" || newWidth <= 0 || newHeight <= 0) return;
     setSaving(true);
     try {
       await createStockSheet({
@@ -130,7 +132,7 @@ const StockPage = () => {
           </Typography>
         </Box>
         {isOwner && (
-          <Button variant="contained" startIcon={<Add />} onClick={() => setDialogOpen(true)}>
+          <Button variant="contained" startIcon={<Add />} onClick={() => { resetTouched(); setDialogOpen(true); }}>
             Crear chapa
           </Button>
         )}
@@ -219,11 +221,13 @@ const StockPage = () => {
             </Select>
           </FormControl>
           <TextField
-            label="Ancho" type="number" value={newWidth} onChange={(e) => setNewWidth(Number(e.target.value))}
+            label="Ancho" type="number" value={newWidth} onChange={(e) => { touch("newWidth"); setNewWidth(Math.max(0, Number(e.target.value) || 0)); }} onBlur={() => touch("newWidth")}
+            error={isTouched("newWidth") && newWidth <= 0} helperText={isTouched("newWidth") && newWidth <= 0 ? "Debe ser mayor a 0." : undefined} slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
           />
           <TextField
-            label="Alto" type="number" value={newHeight} onChange={(e) => setNewHeight(Number(e.target.value))}
+            label="Alto" type="number" value={newHeight} onChange={(e) => { touch("newHeight"); setNewHeight(Math.max(0, Number(e.target.value) || 0)); }} onBlur={() => touch("newHeight")}
+            error={isTouched("newHeight") && newHeight <= 0} helperText={isTouched("newHeight") && newHeight <= 0 ? "Debe ser mayor a 0." : undefined} slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
           />
           <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
@@ -232,7 +236,7 @@ const StockPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={saving || newMaterialId === ""}>
+          <Button variant="contained" onClick={handleCreate} disabled={saving || newMaterialId === "" || newWidth <= 0 || newHeight <= 0}>
             {saving ? "Creando..." : "Crear"}
           </Button>
         </DialogActions>

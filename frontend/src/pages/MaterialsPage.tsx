@@ -23,6 +23,7 @@ import {
 } from "@mui/material";
 import { useMemo, useEffect, useState } from "react";
 import { usePaginatedList } from "../hooks/usePaginatedList";
+import { useTouchedFields } from "../hooks/useTouchedFields";
 
 import {
   type Material,
@@ -44,6 +45,7 @@ const EMPTY_FORM: MaterialCreate = {
 };
 
 const MaterialsPage = () => {
+  const { touch, touchAll, reset: resetTouched, isTouched } = useTouchedFields();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,12 +81,14 @@ const MaterialsPage = () => {
   }
 
   function openCreate() {
+    resetTouched();
     setEditingId(null);
     setForm(EMPTY_FORM);
     setDialogOpen(true);
   }
 
   function openEdit(m: Material) {
+    resetTouched();
     setEditingId(m.id);
     setForm({
       name: m.name,
@@ -101,13 +105,21 @@ const MaterialsPage = () => {
   const TEXT_FIELDS = new Set<keyof MaterialCreate>(["name", "material_type", "alloy"]);
 
   function handleField(field: keyof MaterialCreate, value: string) {
+    touch(field);
     setForm((prev) => ({
       ...prev,
-      [field]: TEXT_FIELDS.has(field) ? value : parseFloat(value) || 0,
+      [field]: TEXT_FIELDS.has(field) ? value : Math.max(0, parseFloat(value) || 0),
     }));
   }
 
+  const hasInvalidNumbers =
+    form.thickness_mm <= 0 || form.sheet_width_mm <= 0 || form.sheet_height_mm <= 0;
+
   async function handleSave() {
+    if (hasInvalidNumbers) {
+      touchAll(["thickness_mm", "sheet_width_mm", "sheet_height_mm"]);
+      return;
+    }
     if (!form.name.trim() || !form.material_type.trim()) return;
     setSaving(true);
     try {
@@ -263,14 +275,14 @@ const MaterialsPage = () => {
             fullWidth
             placeholder="Ej: SAE 1010, AISI 304"
           />
-          <TextField label="Espesor (mm)" type="number" value={form.thickness_mm} onChange={(e) => handleField("thickness_mm", e.target.value)} fullWidth required />
-          <TextField label="Ancho de chapa (mm)" type="number" value={form.sheet_width_mm} onChange={(e) => handleField("sheet_width_mm", e.target.value)} fullWidth required />
-          <TextField label="Alto de chapa (mm)" type="number" value={form.sheet_height_mm} onChange={(e) => handleField("sheet_height_mm", e.target.value)} fullWidth required />
+          <TextField label="Espesor (mm)" type="number" value={form.thickness_mm} onChange={(e) => handleField("thickness_mm", e.target.value)} fullWidth required slotProps={{ htmlInput: { min: 0 } }} onBlur={() => touch("thickness_mm")} error={isTouched("thickness_mm") && form.thickness_mm <= 0} helperText={isTouched("thickness_mm") && form.thickness_mm <= 0 ? "Debe ser mayor a 0." : undefined} />
+          <TextField label="Ancho de chapa (mm)" type="number" value={form.sheet_width_mm} onChange={(e) => handleField("sheet_width_mm", e.target.value)} fullWidth required slotProps={{ htmlInput: { min: 0 } }} onBlur={() => touch("sheet_width_mm")} error={isTouched("sheet_width_mm") && form.sheet_width_mm <= 0} helperText={isTouched("sheet_width_mm") && form.sheet_width_mm <= 0 ? "Debe ser mayor a 0." : undefined} />
+          <TextField label="Alto de chapa (mm)" type="number" value={form.sheet_height_mm} onChange={(e) => handleField("sheet_height_mm", e.target.value)} fullWidth required slotProps={{ htmlInput: { min: 0 } }} onBlur={() => touch("sheet_height_mm")} error={isTouched("sheet_height_mm") && form.sheet_height_mm <= 0} helperText={isTouched("sheet_height_mm") && form.sheet_height_mm <= 0 ? "Debe ser mayor a 0." : undefined} />
           <TextField label="Costo de chapa (ARS)" type="number" value={form.sheet_cost_ars} onChange={(e) => handleField("sheet_cost_ars", e.target.value)} fullWidth required />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim() || !form.material_type.trim()}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim() || !form.material_type.trim() || hasInvalidNumbers}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

@@ -104,7 +104,7 @@ function AddQuotationItemForm({ quotationId, pieces, materials, onItemAdded, onS
         </FormControl>
 
         <TextField label="Cantidad" type="number" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} sx={{ width: 100 }} inputProps={{ min: 1 }} />
-        <TextField label="Margen %" type="number" value={margin} onChange={(e) => setMargin(parseFloat(e.target.value) || 0)} sx={{ width: 110 }} />
+        <TextField label="Margen %" type="number" value={margin} onChange={(e) => setMargin(Math.max(0, parseFloat(e.target.value) || 0))} sx={{ width: 110 }} inputProps={{ min: 0 }} />
 
         <Button variant="contained" onClick={handleAdd} disabled={adding || pieceId === "" || materialId === ""} sx={{ alignSelf: "center", mt: 0.5 }}>
           {adding ? "Agregando..." : "Agregar"}

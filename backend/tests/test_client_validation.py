@@ -49,6 +49,51 @@ def test_client_name_allows_commercial_names_with_numbers_and_punctuation():
     assert res.status_code == 200
 
 
+def test_client_name_rejects_purely_numeric_values():
+    headers = _headers()
+    for bad_name in ["123456", "  42  ", "12-34", "1 2 3", "00.00", "#123"]:
+        res = client.post("/clients", json={"name": bad_name}, headers=headers)
+        assert res.status_code == 422, bad_name
+        assert "letra" in res.json()["detail"][0]["msg"]
+
+
+def test_client_name_accepts_valid_names_with_numbers():
+    headers = _headers()
+    for good_name in ["Metalúrgica 24", "Taller 3D", "Empresa ABC S.R.L.", "Juan Pérez", "3M", "A1"]:
+        res = client.post("/clients", json={"name": good_name}, headers=headers)
+        assert res.status_code == 200, good_name
+
+
+def test_client_update_rejects_purely_numeric_name():
+    headers = _headers()
+    res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
+    client_id = res.json()["id"]
+
+    res = client.put(f"/clients/{client_id}", json={"name": "123456"}, headers=headers)
+    assert res.status_code == 422
+
+    res = client.put(f"/clients/{client_id}", json={"name": "Taller 3D"}, headers=headers)
+    assert res.status_code == 200
+
+
+def test_existing_numeric_named_client_stays_readable_and_other_fields_editable():
+    """No se tocan registros históricos: un cliente ya guardado con nombre
+    numérico se sigue leyendo (ClientRead sin validators) y se puede editar
+    otro campo sin reenviar el nombre."""
+    headers = _headers()
+    res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
+    client_id = res.json()["id"]
+    db = SessionLocal()
+    db.query(Client).filter(Client.id == client_id).update({"name": "123456"})
+    db.commit()
+    db.close()
+
+    assert client.get(f"/clients/{client_id}", headers=headers).json()["name"] == "123456"
+    res = client.put(f"/clients/{client_id}", json={"notes": "nota"}, headers=headers)
+    assert res.status_code == 200
+    assert res.json()["name"] == "123456"
+
+
 def test_client_name_too_long_is_rejected():
     headers = _headers()
     res = client.post("/clients", json={"name": "A" * 201}, headers=headers)

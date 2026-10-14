@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "../config/api";
-import { apiFetch, getAuthHeaders } from "./apiClient";
+import { apiFetch, getAuthHeaders, parseErrorDetail } from "./apiClient";
 
 export interface MachineConfig {
   id: number;
@@ -47,7 +47,10 @@ export async function createMachineConfig(data: MachineConfigCreate): Promise<Ma
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al crear configuración de máquina");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al crear configuración de máquina");
+  }
   return res.json();
 }
 
@@ -57,7 +60,10 @@ export async function updateMachineConfig(id: number, data: MachineConfigUpdate)
     headers: getAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("Error al actualizar configuración de máquina");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al actualizar configuración de máquina");
+  }
   return res.json();
 }
 
@@ -66,5 +72,8 @@ export async function deleteMachineConfig(id: number): Promise<void> {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error("Error al eliminar configuración de máquina");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(parseErrorDetail(err) ?? "Error al eliminar configuración de máquina");
+  }
 }

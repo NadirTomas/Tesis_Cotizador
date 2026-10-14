@@ -18,11 +18,13 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useAuth } from "../context/AuthContext";
 import { getMaterials, type Material } from "../services/materials";
 import { getPieces, type Piece } from "../services/pieces";
 import { calculateNesting, type NestingResult, type NestingSheet } from "../services/nesting";
+import { loadNestingDraft, saveNestingDraft, type NestingCartItem } from "../utils/nestingDraft";
 
 const ACCENT = "#FF6B00";
 const SHEET_COLOR = "#1A1C24";
@@ -170,33 +172,48 @@ function NestingSVG({
   );
 }
 
-interface CartItem {
-  piece_id: number;
-  quantity: number;
-}
-
 const NestingPage = () => {
+  const { companyId } = useAuth();
+  // Se lee una sola vez al montar: el borrador sobrevive a la navegación entre secciones.
+  const draftRef = useRef(loadNestingDraft(companyId));
+  const draft = draftRef.current;
+
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<NestingResult | null>(null);
-  const [activeSheet, setActiveSheet] = useState(0);
+  const [result, setResult] = useState<NestingResult | null>(draft?.result ?? null);
+  const [activeSheet, setActiveSheet] = useState(draft?.activeSheet ?? 0);
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<NestingCartItem[]>(draft?.cart ?? []);
   const [addPieceId, setAddPieceId] = useState<number | "">("");
-  const [sheetW, setSheetW] = useState(1500);
-  const [sheetH, setSheetH] = useState(3000);
-  const [margin, setMargin] = useState(5);
-  const [allowRotation, setAllowRotation] = useState(true);
+  const [sheetW, setSheetW] = useState(draft?.sheetW ?? 1500);
+  const [sheetH, setSheetH] = useState(draft?.sheetH ?? 3000);
+  const [margin, setMargin] = useState(draft?.margin ?? 5);
+  const [allowRotation, setAllowRotation] = useState(draft?.allowRotation ?? true);
 
   useEffect(() => {
     Promise.all([getPieces(), getMaterials()])
-      .then(([p, m]) => { setPieces(p.filter((x) => x.has_dxf)); setMaterials(m); })
+      .then(([p, m]) => {
+        const withDxf = p.filter((x) => x.has_dxf);
+        setPieces(withDxf);
+        setMaterials(m);
+        // Si alguna pieza del borrador ya no existe (borrada o sin DXF), el resultado guardado deja de ser válido.
+        const valid = new Set(withDxf.map((x) => x.id));
+        setCart((c) => {
+          const kept = c.filter((item) => valid.has(item.piece_id));
+          if (kept.length !== c.length) setResult(null);
+          return kept;
+        });
+      })
       .catch(() => setError("No se pudieron cargar los datos."))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    saveNestingDraft(companyId, { cart, sheetW, sheetH, margin, allowRotation, result, activeSheet });
+  }, [companyId, cart, sheetW, sheetH, margin, allowRotation, result, activeSheet]);
 
   function pieceById(id: number) {
     return pieces.find((p) => p.id === id);
@@ -242,7 +259,7 @@ const NestingPage = () => {
   }
 
   async function handleCalculate() {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || sheetW <= 0 || sheetH <= 0) return;
     setCalculating(true);
     setError(null);
     try {
@@ -377,7 +394,10 @@ const NestingPage = () => {
                 label="Ancho chapa"
                 type="number"
                 value={sheetW}
-                onChange={(e) => { setSheetW(Number(e.target.value)); setResult(null); }}
+                onChange={(e) => { setSheetW(Math.max(0, Number(e.target.value) || 0)); setResult(null); }}
+                error={sheetW <= 0}
+                helperText={sheetW <= 0 ? "Debe ser mayor a 0." : undefined}
+                slotProps={{ htmlInput: { min: 0 } }}
                 InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
                 fullWidth
               />
@@ -385,7 +405,10 @@ const NestingPage = () => {
                 label="Alto chapa"
                 type="number"
                 value={sheetH}
-                onChange={(e) => { setSheetH(Number(e.target.value)); setResult(null); }}
+                onChange={(e) => { setSheetH(Math.max(0, Number(e.target.value) || 0)); setResult(null); }}
+                error={sheetH <= 0}
+                helperText={sheetH <= 0 ? "Debe ser mayor a 0." : undefined}
+                slotProps={{ htmlInput: { min: 0 } }}
                 InputProps={{ endAdornment: <InputAdornment position="end">mm</InputAdornment> }}
                 fullWidth
               />

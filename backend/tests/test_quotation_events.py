@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -58,7 +59,7 @@ def test_quotation_lifecycle_generates_expected_events():
     client_id = res.json()["id"]
 
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-21T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     quotation_id = res.json()["id"]
 
@@ -103,7 +104,7 @@ def test_events_scoped_to_company():
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers_a)
     client_id = res.json()["id"]
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-21T00:00:00"}, headers=headers_a
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers_a
     )
     quotation_id = res.json()["id"]
 

@@ -27,6 +27,7 @@ from app.models.piece import Piece
 from app.models.quotation import Quotation
 from app.models.quotation_item import QuotationItem
 from scripts import recalculate_piece_geometry as recalc
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -145,7 +146,7 @@ def _create_client_record(headers, name="Cliente"):
 def _create_quotation(headers, client_id):
     res = client.post(
         "/quotations",
-        json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"},
+        json={"client_id": client_id, "issue_date": issue_iso()},
         headers=headers,
     )
     assert res.status_code == 200

@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -100,7 +101,7 @@ def _create_piece(headers, material_id, name="Pieza"):
 
 
 def _create_quotation(headers, client_id, **kwargs):
-    payload = {"client_id": client_id, "issue_date": "2026-08-26T00:00:00", **kwargs}
+    payload = {"client_id": client_id, "issue_date": issue_iso(), **kwargs}
     res = client.post("/quotations", json=payload, headers=headers)
     assert res.status_code == 200
     return res.json()["id"]

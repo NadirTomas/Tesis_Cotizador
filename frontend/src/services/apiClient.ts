@@ -1,3 +1,5 @@
+import { clearNestingDraft } from "../utils/nestingDraft";
+
 const AUTH_TOKEN_KEY = "auth_token";
 const COMPANY_ID_KEY = "company_id";
 
@@ -20,6 +22,7 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
   if (res.status === 401 && window.location.pathname !== "/login") {
     localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(COMPANY_ID_KEY);
+    clearNestingDraft();
     window.location.href = "/login";
   }
   return res;

@@ -145,7 +145,7 @@ const PiecesPage = () => {
     try {
       const payload = {
         name: manualName.trim(),
-        ...(manualDescription.trim() && { description: manualDescription.trim() }),
+        description: manualDescription.trim() || null,
         ...(manualMaterialId !== "" && { material_id: manualMaterialId as number }),
       };
       await updatePiece(editingId, payload);
@@ -263,7 +263,17 @@ const PiecesPage = () => {
                       </Box>
                     )}
                   </TableCell>
-                  <TableCell sx={{ fontWeight: 500 }}>{p.name}</TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontWeight: 500, fontSize: "inherit" }}>{p.name}</Typography>
+                    {p.description && (
+                      <Typography
+                        title={p.description}
+                        sx={{ fontSize: "0.75rem", color: "text.secondary", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      >
+                        {p.description}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>{materialName(p.material_id)}</TableCell>
                   <TableCell align="right">
                     <span className="mono">

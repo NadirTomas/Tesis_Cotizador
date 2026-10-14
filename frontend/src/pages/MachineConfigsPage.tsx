@@ -25,7 +25,9 @@ import {
   Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { usePaginatedList } from "../hooks/usePaginatedList";
+import { useTouchedFields } from "../hooks/useTouchedFields";
 
 import { getMaterials, type Material } from "../services/materials";
 import {
@@ -48,6 +50,8 @@ const EMPTY_FORM: MachineConfigCreate = {
 };
 
 const MachineConfigsPage = () => {
+  const { companyRole } = useAuth();
+  const isOwner = companyRole === "owner";
   const [configs, setConfigs] = useState<MachineConfig[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +64,7 @@ const MachineConfigsPage = () => {
   const [saving, setSaving] = useState(false);
 
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const { touch, touchAll, reset: resetTouched, isTouched } = useTouchedFields();
 
   const { paginatedItems, page, rowsPerPage, totalCount, handlePageChange, handleRowsPerPageChange } =
     usePaginatedList(configs, 20);
@@ -79,6 +84,9 @@ const MachineConfigsPage = () => {
     }
   }
 
+  const configuredMaterialIds = new Set(configs.map((c) => c.material_id));
+  const availableMaterials = materials.filter((m) => !configuredMaterialIds.has(m.id));
+
   function materialName(id: number): string {
     return materials.find((m) => m.id === id)?.name ?? `#${id}`;
   }
@@ -88,12 +96,14 @@ const MachineConfigsPage = () => {
   }
 
   function openCreate() {
+    resetTouched();
     setEditingId(null);
-    setForm({ ...EMPTY_FORM, material_id: materials[0]?.id ?? 0 });
+    setForm({ ...EMPTY_FORM, material_id: availableMaterials[0]?.id ?? 0 });
     setDialogOpen(true);
   }
 
   function openEdit(c: MachineConfig) {
+    resetTouched();
     setEditingId(c.id);
     setForm({
       material_id: c.material_id,
@@ -108,12 +118,20 @@ const MachineConfigsPage = () => {
   }
 
   function handleNum(field: keyof MachineConfigCreate, value: string, min = -Infinity) {
+    touch(field);
     const parsed = parseFloat(value);
     const safe = Number.isNaN(parsed) ? 0 : parsed;
     setForm((prev) => ({ ...prev, [field]: Math.max(min, safe) }));
   }
 
+  const invalidSpeed = form.cut_speed_mm_min <= 0;
+  const invalidCost = form.machine_cost_per_hour_ars <= 0;
+
   async function handleSave() {
+    if (invalidSpeed || invalidCost) {
+      touchAll(["cut_speed_mm_min", "machine_cost_per_hour_ars"]);
+      return;
+    }
     if (!form.material_id) return;
     setSaving(true);
     try {
@@ -126,8 +144,8 @@ const MachineConfigsPage = () => {
       }
       setDialogOpen(false);
       await loadAll();
-    } catch {
-      setToast("Error al guardar la configuración.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Error al guardar la configuración.");
     } finally {
       setSaving(false);
     }
@@ -140,8 +158,8 @@ const MachineConfigsPage = () => {
       setToast("Configuración eliminada.");
       setDeleteId(null);
       await loadAll();
-    } catch {
-      setToast("Error al eliminar la configuración.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Error al eliminar la configuración.");
     }
   }
 
@@ -172,7 +190,7 @@ const MachineConfigsPage = () => {
           variant="contained"
           startIcon={<Add />}
           onClick={openCreate}
-          disabled={materials.length === 0}
+          disabled={!isOwner || availableMaterials.length === 0}
         >
           Crear configuración
         </Button>
@@ -181,6 +199,19 @@ const MachineConfigsPage = () => {
       {materials.length === 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           Primero creá al menos un material antes de configurar la máquina.
+        </Alert>
+      )}
+
+      {!isOwner && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Solo el OWNER de la empresa puede crear, editar o eliminar configuraciones de máquina.
+        </Alert>
+      )}
+
+      {isOwner && materials.length > 0 && availableMaterials.length === 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Todos los materiales ya tienen una configuración activa (hay una por material). Para cambiar de máquina,
+          editá la configuración existente o eliminala (queda desactivada, las cotizaciones anteriores conservan sus costos) y creá la nueva.
         </Alert>
       )}
 
@@ -230,10 +261,10 @@ const MachineConfigsPage = () => {
                     <span className="mono">{c.minimum_spacing_mm}</span>
                   </TableCell>
                   <TableCell align="center">
-                    <IconButton size="small" onClick={() => openEdit(c)}>
+                    <IconButton size="small" onClick={() => openEdit(c)} disabled={!isOwner}>
                       <Edit fontSize="small" />
                     </IconButton>
-                    <IconButton size="small" color="error" onClick={() => setDeleteId(c.id)}>
+                    <IconButton size="small" color="error" onClick={() => setDeleteId(c.id)} disabled={!isOwner}>
                       <Delete fontSize="small" />
                     </IconButton>
                   </TableCell>
@@ -267,7 +298,7 @@ const MachineConfigsPage = () => {
               onChange={(e) => setForm((prev) => ({ ...prev, material_id: e.target.value as number }))}
               disabled={editingId !== null}
             >
-              {materials.map((m) => (
+              {(editingId !== null ? materials : availableMaterials).map((m) => (
                 <MenuItem key={m.id} value={m.id}>
                   {m.name} — {m.thickness_mm}mm
                 </MenuItem>
@@ -278,22 +309,30 @@ const MachineConfigsPage = () => {
             label="Velocidad de corte (mm/min)"
             type="number"
             value={form.cut_speed_mm_min}
-            onChange={(e) => handleNum("cut_speed_mm_min", e.target.value)}
+            onChange={(e) => handleNum("cut_speed_mm_min", e.target.value, 0)}
+            error={isTouched("cut_speed_mm_min") && invalidSpeed}
+            onBlur={() => touch("cut_speed_mm_min")}
+            slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required
-            helperText="Velocidad típica: acero 3mm ≈ 3000 mm/min"
+            helperText={isTouched("cut_speed_mm_min") && invalidSpeed ? "Debe ser mayor a 0." : "Velocidad típica: acero 3mm ≈ 3000 mm/min"}
           />
           <TextField
             label="Costo por hora de máquina (ARS)"
             type="number"
             value={form.machine_cost_per_hour_ars}
-            onChange={(e) => handleNum("machine_cost_per_hour_ars", e.target.value)}
+            onChange={(e) => handleNum("machine_cost_per_hour_ars", e.target.value, 0)}
+            error={isTouched("machine_cost_per_hour_ars") && invalidCost}
+            onBlur={() => touch("machine_cost_per_hour_ars")}
+            helperText={isTouched("machine_cost_per_hour_ars") && invalidCost ? "Debe ser mayor a 0." : undefined}
+            slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required
           />
           <TextField
             label="Tiempo de setup (min)"
             type="number"
             value={form.setup_time_min}
-            onChange={(e) => handleNum("setup_time_min", e.target.value)}
+            onChange={(e) => handleNum("setup_time_min", e.target.value, 0)}
+            slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required
             helperText="Tiempo de preparación de la máquina, aplicado una sola vez por lote/trabajo (no se multiplica por la cantidad de piezas)"
           />
@@ -301,7 +340,8 @@ const MachineConfigsPage = () => {
             label="Mano de obra (%)"
             type="number"
             value={form.labor_percent}
-            onChange={(e) => handleNum("labor_percent", e.target.value)}
+            onChange={(e) => handleNum("labor_percent", e.target.value, 0)}
+            slotProps={{ htmlInput: { min: 0 } }}
             fullWidth required
             helperText="Porcentaje sobre el costo de máquina"
           />
@@ -326,7 +366,7 @@ const MachineConfigsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !form.material_id}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !form.material_id || invalidSpeed || invalidCost}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

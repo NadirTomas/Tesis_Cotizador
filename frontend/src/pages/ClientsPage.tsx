@@ -32,6 +32,7 @@ import {
   getClients,
   updateClient,
 } from "../services/clients";
+import { getClientNameError } from "../utils/clientName";
 
 const EMPTY_FORM: ClientCreate = {
   name: "",
@@ -103,8 +104,10 @@ const ClientsPage = () => {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  const nameError = getClientNameError(form.name);
+
   async function handleSave() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || nameError) return;
     setSaving(true);
     try {
       const payload: ClientCreate = {
@@ -244,7 +247,7 @@ const ClientsPage = () => {
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>{editingId ? "Editar cliente" : "Crear cliente"}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField label="Nombre" value={form.name} onChange={(e) => handleField("name", e.target.value)} fullWidth required />
+          <TextField label="Nombre" value={form.name} onChange={(e) => handleField("name", e.target.value)} fullWidth required error={!!nameError} helperText={nameError ?? undefined} />
           <TextField label="CUIT / CUIL" value={form.cuit_cuil} onChange={(e) => handleField("cuit_cuil", e.target.value)} fullWidth />
           <TextField label="Teléfono" value={form.phone} onChange={(e) => handleField("phone", e.target.value)} fullWidth />
           <TextField label="Email" type="email" value={form.email} onChange={(e) => handleField("email", e.target.value)} fullWidth />
@@ -253,7 +256,7 @@ const ClientsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim()}>
+          <Button variant="contained" onClick={handleSave} disabled={saving || !form.name.trim() || !!nameError}>
             {saving ? "Guardando..." : "Guardar"}
           </Button>
         </DialogActions>

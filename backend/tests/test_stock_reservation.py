@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -117,7 +118,7 @@ def _create_client(headers, name="Cliente"):
 
 def _create_quotation(headers, client_id):
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     assert res.status_code == 200
     return res.json()["id"]

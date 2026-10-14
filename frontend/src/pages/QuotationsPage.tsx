@@ -182,9 +182,9 @@ const QuotationsPage = () => {
                 return (
                   <TableRow key={q.id}>
                     <TableCell>
-                      <span className="mono" style={{ color: "#E8E9EB", fontWeight: 500 }}>
+                      <Box component="span" className="mono" sx={{ color: "text.primary", fontWeight: 500 }}>
                         {q.number}
-                      </span>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ fontWeight: 500 }}>{clientName(q.client_id)}</TableCell>
                     <TableCell sx={{ color: "text.secondary" }}>{formatDate(q.issue_date)}</TableCell>

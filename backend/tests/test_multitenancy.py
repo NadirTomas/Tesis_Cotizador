@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.db.init_db import init_db
 from app.db.session import engine
 from app.main import app
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -75,7 +76,7 @@ def test_cannot_create_quotation_with_client_from_other_company():
 
     res = client.post(
         "/quotations",
-        json={"client_id": client_a_id, "issue_date": "2026-08-20T00:00:00"},
+        json={"client_id": client_a_id, "issue_date": issue_iso()},
         headers=headers_b,
     )
     assert res.status_code == 404
@@ -102,7 +103,7 @@ def test_cannot_use_machine_config_from_other_company_in_quotation_item():
     client_a_id = res.json()["id"]
     res = client.post(
         "/quotations",
-        json={"client_id": client_a_id, "issue_date": "2026-08-20T00:00:00"},
+        json={"client_id": client_a_id, "issue_date": issue_iso()},
         headers=headers_a,
     )
     quotation_a = res.json()["id"]
@@ -132,14 +133,14 @@ def test_quotation_numbering_independent_per_company():
 
     res = client.post(
         "/quotations",
-        json={"client_id": client_a_id, "issue_date": "2026-08-20T00:00:00"},
+        json={"client_id": client_a_id, "issue_date": issue_iso()},
         headers=headers_a,
     )
     assert res.json()["number"] == "COT-0001"
 
     res = client.post(
         "/quotations",
-        json={"client_id": client_b_id, "issue_date": "2026-08-20T00:00:00"},
+        json={"client_id": client_b_id, "issue_date": issue_iso()},
         headers=headers_b,
     )
     assert res.json()["number"] == "COT-0001"

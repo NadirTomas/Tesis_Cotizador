@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     ADMIN_SECRET: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
+    # Zona horaria de referencia del negocio: define qué es "hoy" para las
+    # reglas de fechas, sin depender de la zona del servidor (Railway corre en UTC).
+    BUSINESS_TIMEZONE: str = "America/Argentina/Buenos_Aires"
     # File upload limits (in bytes)
     MAX_DXF_SIZE: int = 10 * 1024 * 1024  # 10MB
     MAX_LOGO_SIZE: int = 5 * 1024 * 1024  # 5MB

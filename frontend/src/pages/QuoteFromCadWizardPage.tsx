@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import AddQuotationItemForm from "../components/AddQuotationItemForm";
 import { getClients, type Client } from "../services/clients";
 import { getMaterials, type Material } from "../services/materials";
+import { todayInBusinessTimezone } from "../utils/date";
 import { getPieces, type Piece } from "../services/pieces";
 import { openAuthedResource } from "../services/authedResource";
 import {
@@ -43,7 +44,7 @@ import {
 const STEPS = ["Datos de la cotización", "Agregar piezas", "Resumen"];
 
 function today(): string {
-  return new Date().toISOString().split("T")[0];
+  return todayInBusinessTimezone();
 }
 
 function formatARS(value: number): string {
@@ -61,8 +62,12 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const issueDateError = issueDate && issueDate < today() ? "La fecha de emisión no puede ser anterior a hoy." : null;
+  const dueDateError = dueDate && issueDate && dueDate < issueDate ? "El vencimiento no puede ser anterior a la emisión." : null;
+  const exchangeRateError = exchangeRate && !(parseFloat(exchangeRate) > 0) ? "El tipo de cambio debe ser mayor a 0." : null;
+
   async function handleCreate() {
-    if (!clientId || !issueDate) return;
+    if (!clientId || !issueDate || issueDateError || dueDateError || exchangeRateError) return;
     setSaving(true);
     setError(null);
     try {
@@ -104,7 +109,9 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
             fullWidth
             required
             InputLabelProps={{ shrink: true }}
-            inputProps={{ min: "2000-01-01" }}
+            error={!!issueDateError}
+            helperText={issueDateError ?? undefined}
+            inputProps={{ min: today() }}
           />
           <TextField
             label="Fecha de vencimiento (opcional)"
@@ -113,7 +120,9 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
             onChange={(e) => setDueDate(e.target.value)}
             fullWidth
             InputLabelProps={{ shrink: true }}
-            inputProps={{ min: issueDate || "2000-01-01" }}
+            error={!!dueDateError}
+            helperText={dueDateError ?? undefined}
+            inputProps={{ min: issueDate || today() }}
           />
           <FormControl fullWidth>
             <InputLabel>Moneda</InputLabel>
@@ -122,10 +131,10 @@ function Step1({ clients, onCreated }: { clients: Client[]; onCreated: (q: Quota
               <MenuItem value="USD">USD</MenuItem>
             </Select>
           </FormControl>
-          <TextField label="Tipo de cambio (opcional)" type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} fullWidth placeholder="Ej: 1050" />
+          <TextField label="Tipo de cambio (opcional)" type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} fullWidth placeholder="Ej: 1050" error={!!exchangeRateError} helperText={exchangeRateError ?? undefined} slotProps={{ htmlInput: { min: 0 } }} />
           <TextField label="Notas (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline rows={2} />
           <Box display="flex" justifyContent="flex-end" mt={1}>
-            <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !issueDate}>
+            <Button variant="contained" onClick={handleCreate} disabled={saving || !clientId || !issueDate || !!issueDateError || !!dueDateError || !!exchangeRateError}>
               {saving ? "Creando..." : "Crear cotización →"}
             </Button>
           </Box>

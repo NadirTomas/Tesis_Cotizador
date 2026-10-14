@@ -8,6 +8,7 @@ from app.db.init_db import init_db
 from app.db.session import SessionLocal, engine
 from app.main import app
 from app.models.quotation import Quotation
+from tests._dates import issue_iso
 
 client = TestClient(app)
 
@@ -210,7 +211,7 @@ def test_quotation_item_rejects_negative_quantity():
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-21T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     quotation_id = res.json()["id"]
 
@@ -240,7 +241,7 @@ def test_update_quotation_item_recalculates():
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-21T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     quotation_id = res.json()["id"]
     res = client.post(
@@ -279,7 +280,7 @@ def _setup_quotation_with_item(headers):
     res = client.post("/clients", json={"name": "Cliente"}, headers=headers)
     client_id = res.json()["id"]
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-21T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     quotation_id = res.json()["id"]
     res = client.post(
@@ -358,7 +359,7 @@ def test_quotation_number_retries_on_concurrent_collision():
     client_id = res.json()["id"]
 
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     assert res.status_code == 200
     assert res.json()["number"] == "COT-0001"
@@ -375,7 +376,7 @@ def test_quotation_number_retries_on_concurrent_collision():
     db.close()
 
     res = client.post(
-        "/quotations", json={"client_id": client_id, "issue_date": "2026-08-26T00:00:00"}, headers=headers
+        "/quotations", json={"client_id": client_id, "issue_date": issue_iso()}, headers=headers
     )
     assert res.status_code == 200, "debería reintentar con otro número, no devolver un 500"
     assert res.json()["number"] == "COT-0003"
