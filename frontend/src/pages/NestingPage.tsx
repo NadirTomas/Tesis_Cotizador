@@ -300,7 +300,7 @@ const NestingPage = () => {
 
       <Box display="flex" gap={3} flexWrap="wrap" alignItems="flex-start">
         {/* Panel de configuración */}
-        <Paper variant="outlined" sx={{ p: 3, minWidth: 320, flexShrink: 0 }}>
+        <Paper variant="outlined" sx={{ p: 3, width: { xs: "100%", md: 380 }, maxWidth: "100%", boxSizing: "border-box", flexShrink: 0 }}>
           <Typography sx={{ fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600, fontSize: "0.75rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "text.secondary", mb: 2 }}>
             Configuración
           </Typography>
@@ -381,7 +381,7 @@ const NestingPage = () => {
                       size="small"
                       variant="outlined"
                       onClick={() => applyMaterialDimensions(m.id)}
-                      sx={{ fontSize: "0.7rem", cursor: "pointer" }}
+                      sx={{ fontSize: "0.7rem", cursor: "pointer", maxWidth: "100%" }}
                     />
                   ))}
                 </Box>
